@@ -11,11 +11,11 @@ const LINE_COLOR = [:red, :black]
 const FILL_ALPHA = 0.5
 const ANNOTATE_POSITION = -0.2
 const ANNOTATE_SIZE = 12
-const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk.py/nscf.out"
+const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/nscf.out"
 const FILE_DOS = raw"/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot"
-const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk.py/NbP_band.labelinfo.dat"
+const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/NbP_band.labelinfo.dat"
 const FILE_BAND = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/bands.scf.dat.gnu"
-const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk.py/NbP_band.dat"
+const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/NbP_band.dat"
 
 
 function openfile(data::String)
