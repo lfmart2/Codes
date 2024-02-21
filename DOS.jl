@@ -4,13 +4,13 @@ using CSV
 using Plots.PlotMeasures
 
 
-
-
 const LINE_WIDTH = 0.75
 const LINE_COLOR = [:red, :black]
 const FILL_ALPHA = 0.5
 const ANNOTATE_POSITION = -0.2
 const ANNOTATE_SIZE = 12
+
+# Files to lead the QE output data
 const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/nscf.out"
 const FILE_DOS = raw"/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot"
 const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/NbP_band.labelinfo.dat"
