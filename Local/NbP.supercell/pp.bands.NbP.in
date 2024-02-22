@@ -1,0 +1,6 @@
+&BANDS
+  prefix = 'NbP.supercell'
+  outdir = './out/'
+  filband = 'NbP_supercell2x2.bands.dat'
+!  lsym    = .false.
+/
