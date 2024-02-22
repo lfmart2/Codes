@@ -1,0 +1,68 @@
+
+     Program BANDS v.7.2 starts on 19Feb2024 at 11:52:41 
+
+     This program is part of the open-source Quantum ESPRESSO suite
+     for quantum simulation of materials; please cite
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 21 395502 (2009);
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 29 465901 (2017);
+         "P. Giannozzi et al., J. Chem. Phys. 152 154105 (2020);
+          URL http://www.quantum-espresso.org", 
+     in publications or presentations arising from this work. More details at
+     http://www.quantum-espresso.org/quote
+
+     Parallel version (MPI), running on     1 processors
+
+     MPI processes distributed on     1 nodes
+     157844 MiB available memory on the printing compute node when the environment starts
+ 
+
+     Reading xml data from directory:
+
+     ./out/NbP_bulk.save/
+     file Nb.pbesol-spn-kjpaw_psl.0.3.0.UPF: wavefunction(s)  4S 4P renormalized
+
+     IMPORTANT: XC functional enforced from input :
+     Exchange-correlation= PBESOL
+                           (   1   4  10   8   0   0   0)
+     Any further DFT definition will be discarded
+     Please, verify this is what you really want
+
+ 
+     G-vector sticks info
+     --------------------
+     sticks:   dense  smooth     PW     G-vecs:    dense   smooth      PW
+     Sum        1033     509    161                41977    14855    2505
+ 
+     Using Slab Decomposition
+ 
+
+     Check: negative core charge=   -0.000003
+     Reading collected, re-writing distributed wavefunctions
+     high-symmetry point:  0.0000 0.0000 0.0000   x coordinate   0.0000
+     high-symmetry point:  0.0000 0.0000 0.2935   x coordinate   0.2935
+     high-symmetry point:  0.4569 0.0000 0.2935   x coordinate   0.7504
+     high-symmetry point:  0.5431 0.0000 0.0000   x coordinate   1.0563
+     high-symmetry point:  0.4569 0.4569 0.2934   x coordinate   1.6061
+     high-symmetry point:  0.0000 0.0000 0.0000   x coordinate   2.3158
+
+     Plottable bands (eV) written to file bands.scf.dat.gnu
+     Bands written to file bands.scf.dat
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+     Message from routine scale_sym_ops:
+     found rotation not compatible with FFT grid
+
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+     Error in routine scale_sym_ops (6):
+     incompatible FFT grid
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+     stopping ...
