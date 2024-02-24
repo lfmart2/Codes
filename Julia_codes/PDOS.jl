@@ -12,7 +12,7 @@ function openfile(data::String)
     return energy, pdos
 end
 
-file_Efermi = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP_scf.out"
+file_Efermi = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/scf.out"
 
 
 function Efermi(txxt::String)
@@ -23,15 +23,15 @@ function Efermi(txxt::String)
     close(datafile)
 end
 
-files = filter(x->occursin("NbP_pdos.dat.pdos_atm",x), readdir("/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/"))
+files = filter(x->occursin("NbP_pdos.dat.pdos_atm",x), readdir("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/"))
 
 
 function plot_pdos(ffiless::Vector{String},M::Vector{Int64})
-    p = plot()
+    # p = plot()
     clrs = [:blue, :red, :green, :blue];
     linestyle = [:solid, :dash, :dashdot, :dot]
     for i in ffiless
-        E,  PDOS = openfile("/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/"*i)
+        E,  PDOS = openfile("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/"*i)
         region_condition = zeros(length(E))
         region_condition[E .> Efermi(file_Efermi)] = PDOS[E .> Efermi(file_Efermi)]
         
@@ -46,7 +46,7 @@ function plot_pdos(ffiless::Vector{String},M::Vector{Int64})
         ls = linestyle[parse(Int, string(i[23]))],
         lc=clrs[parse(Int, string(i[end-3]))])
     end
-    Enn,  PPDOS = openfile("/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot")
+    Enn,  PPDOS = openfile("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot")
     plot!(p,Efermi(file_Efermi)*ones(2), [0, findmax(PPDOS)[1]],lw=0.75,lc=:black,ls=:dashdot,label=false)
     plot!(p,grid=false, yticks=false, xlabel="Energy (eV)", ylabel="DOS (states/eV)", xlims=(M[1],M[2]), ylims=(0, findmax(PPDOS)[1]-10), legend=:topleft)
     plot!(p,Enn, PPDOS, lw=2,label="Total DOS", lc=:black)

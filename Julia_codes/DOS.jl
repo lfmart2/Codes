@@ -11,11 +11,11 @@ const ANNOTATE_POSITION = -0.2
 const ANNOTATE_SIZE = 12
 
 # Files to lead the QE output data
-const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/nscf.out"
-const FILE_DOS = raw"/home/r_floren/BandStructure/QE/NbP/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot"
-const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/NbP_band.labelinfo.dat"
-const FILE_BAND = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/bands.scf.dat.gnu"
-const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/Local/NbP.supercell/Bulk1/NbP_band.dat"
+const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/nscf.out"
+const FILE_DOS = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot"
+const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/NbP_band.labelinfo.dat"
+const FILE_BAND = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/bands.scf.dat.gnu"
+const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/NbP_band.dat"
 
 
 function openfile(data::String)
@@ -66,7 +66,7 @@ function Band_structure_plot(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PAT
     for i in 1:length(vc_size)-1
         plot!(p1,data[vc_size[i]:vc_size[i+1]-1,1]./data[end,1],data[vc_size[i]:vc_size[i+1]-1,2],lw=0.75,lc=:red,ls=:dash,label=false,xticks = false)
     end
-    plot!(p1,data[vc_size[end]:end-1,1]./data[end,1],data[vc_size[end]:end-1,2],lw=0.75,lc=:red,ls=:dash,label=false,xticks = false)
+    plot!(p1,data[vc_size[end]:end-1,1]./data[end,1],data[vc_size[end]:end-1,2],lw=0.75,lc=:red,ls=:dash,label="SCF",xticks = false)
     hline!(p1,[fermi_energy],lw=0.75,lc=:black,ls=:dashdot,label=false)
     vline!(p1,readdlm(FILE_PATH_SYM)[:,3]./readdlm(FILE_PATH_SYM)[end,3], lw=1,lc=:black,ls=:solid,label=false)
     plot!(p1,xlims=(0,1),grid=false, ylabel="Energy (eV)")
@@ -81,5 +81,5 @@ function Band_structure_plot1(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PA
     for i in 1:length(vc_size)-1
         plot!(data[vc_size[i]:vc_size[i+1]-1,1]./data[end,1],data[vc_size[i]:vc_size[i+1]-1,2],lw=0.75,lc=:blue,label=false)
     end
-    plot!(data[vc_size[end]:end-1,1]./data[end,1],data[vc_size[end]:end-1,2],lw=0.75,lc=:blue,label=false)
+    plot!(data[vc_size[end]:end-1,1]./data[end,1],data[vc_size[end]:end-1,2],lw=0.75,lc=:blue,label="Tight-Binding")
 end
