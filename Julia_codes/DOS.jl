@@ -56,11 +56,11 @@ end
 function Band_structure_plot(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PATH_FE::String)
     p1 = plot();
     # Parameters for the plot
-    const LINE_WIDTH = 0.75
-    const LINE_COLOR = [:red, :black]
-    const FILL_ALPHA = 0.5
-    const ANNOTATE_POSITION = -0.2
-    const ANNOTATE_SIZE = 12
+    LINE_WIDTH = 0.75
+    LINE_COLOR = [:red, :black]
+    FILL_ALPHA = 0.5
+    ANNOTATE_POSITION = -0.2
+    ANNOTATE_SIZE = 12
 
     data = readdlm(FILE_PATH_BS)
     fermi_energy = extract_fermi_energy(FILE_PATH_FE)
