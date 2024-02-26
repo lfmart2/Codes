@@ -1,0 +1,8 @@
+&inputpp
+  outdir     =  './out/'
+  prefix     =  'NbP_bulk'
+  seedname   =  'NbP'
+  write_amn  =  .true.
+  write_mmn  =  .true.
+  write_unk  =  .true.
+/

@@ -4,7 +4,6 @@ using CSV
 
 
 
-
 function openfile(data::String)
     datafile = readdlm(data)
     energy = datafile[2:end,1]
@@ -12,28 +11,35 @@ function openfile(data::String)
     return energy, pdos
 end
 
-file_Efermi = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/scf.out"
+const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/scf.out"
 
-
-function Efermi(txxt::String)
-    datafile = open(txxt,"r")
-    lines = readlines(datafile)
-    match = findfirst(i -> occursin("Fermi", i), lines)
-    return match isa Nothing ? nothing : parse(Float64, split(lines[match])[end-1])
-    close(datafile)
+function openfile1(data::String)
+    open(data, "r") do file
+        return readlines(file)
+    end
 end
 
-files = filter(x->occursin("NbP_pdos.dat.pdos_atm",x), readdir("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/"))
+function extract_fermi_energy(FILE_PATH::String)::Float64
+    lines = openfile1(FILE_PATH)
+    match = findfirst(i -> occursin("Fermi", i), lines)
+    if match isa Nothing
+        error("Fermi energy not found in the input data.")
+    else
+        return parse(Float64, split(lines[match])[end-1])
+    end
+end
+
+const files = filter(x->occursin("NbP_pdos.dat.pdos_atm",x), readdir("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/"))
 
 
-function plot_pdos(ffiless::Vector{String},M::Vector{Int64})
-    # p = plot()
+function plot_pdos(Folder_PATH::Vector{String},M::Vector{Int64})
+    p = plot()
     clrs = [:blue, :red, :green, :blue];
     linestyle = [:solid, :dash, :dashdot, :dot]
-    for i in ffiless
+    for i in Folder_PATH
         E,  PDOS = openfile("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/"*i)
         region_condition = zeros(length(E))
-        region_condition[E .> Efermi(file_Efermi)] = PDOS[E .> Efermi(file_Efermi)]
+        region_condition[E .> extract_fermi_energy(FILE_FE)] = PDOS[E .> extract_fermi_energy(FILE_FE)]
         
         plot!(p,E, PDOS,
         lw=1.5, label=i[25:end-10]*" "*i[end-3:end], 
@@ -47,9 +53,9 @@ function plot_pdos(ffiless::Vector{String},M::Vector{Int64})
         lc=clrs[parse(Int, string(i[end-3]))])
     end
     Enn,  PPDOS = openfile("/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot")
-    plot!(p,Efermi(file_Efermi)*ones(2), [0, findmax(PPDOS)[1]],lw=0.75,lc=:black,ls=:dashdot,label=false)
+    plot!(p,extract_fermi_energy(FILE_FE)*ones(2), [0, findmax(PPDOS)[1]],lw=0.75,lc=:black,ls=:dashdot,label=false)
     plot!(p,grid=false, yticks=false, xlabel="Energy (eV)", ylabel="DOS (states/eV)", xlims=(M[1],M[2]), ylims=(0, findmax(PPDOS)[1]-10), legend=:topleft)
     plot!(p,Enn, PPDOS, lw=2,label="Total DOS", lc=:black)
-    annotate!(p,Efermi(file_Efermi)-0.2,4, Plots.text("Fermi energy", 12, :dark, rotation = 90 ))
+    annotate!(p,extract_fermi_energy(FILE_FE)-0.2,4, Plots.text("Fermi energy", 12, :dark, rotation = 90 ))
     return p
 end

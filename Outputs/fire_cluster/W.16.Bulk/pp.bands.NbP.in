@@ -1,0 +1,5 @@
+&BANDS
+  prefix = 'NbP_bulk'
+  outdir = './out/'
+  filband = 'bands.scf.dat'
+/

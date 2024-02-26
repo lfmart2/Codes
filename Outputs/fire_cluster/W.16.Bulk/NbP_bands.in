@@ -1,0 +1,48 @@
+&CONTROL
+  calculation   = 'bands'                 !! Type of calculation
+  etot_conv_thr = 4.0000000000d-05        !! Energy convergence threshold
+  forc_conv_thr = 1.0000000000d-04        !! Force convergence threshold
+  outdir        = './out/'                !! Output directory
+  prefix        = 'NbP_bulk'              !! Prefix for output files
+  pseudo_dir    = './pseudo/'             !! Directory for pseudopotentials
+  tprnfor       = .true.                  !! Print forces
+  tstress       = .true.                  !! Print stress
+  verbosity     = 'high'                  !! Output verbosity level
+/
+&SYSTEM
+  degauss       = 7.3498618000d-03        !! Smearing width
+  ecutrho       = 3.2000000000d+02        !! Cutoff energy for charge density
+  ecutwfc       = 4.0000000000d+01        !! Cutoff energy for wavefunctions
+  ibrav         = 0                       !! Bravais lattice type
+  nat           = 4                       !! Number of atoms in the unit cell
+  nosym         = .false.                 !! Disable symmetry
+  ntyp          = 2                       !! Number of atom types
+  occupations   = 'smearing'              !! Occupation method
+  smearing      = 'cold'                  !! Smearing method
+/
+&ELECTRONS
+  conv_thr         = 8.0000000000d-10        !! Convergence threshold for electron density
+  electron_maxstep = 80                   !! Maximum number of electronic steps
+  mixing_beta      = 4.0000000000d-01        !! Mixing parameter for electron density
+/
+ATOMIC_SPECIES
+Nb     92.90638 Nb.pbesol-spn-kjpaw_psl.0.3.0.UPF   !! Atomic species and pseudopotential file
+P      30.973761 P.pbesol-n-rrkjus_psl.1.0.0.UPF    !! Atomic species and pseudopotential file
+ATOMIC_POSITIONS angstrom
+Nb       1.6782189994     0.0000000000     2.8582318925   !! Atomic positions
+Nb       0.0000000000    -0.0000000000     5.7173443916   !! Atomic positions
+P       -0.0000000000     1.6782189994     1.9149992426   !! Atomic positions
+P        1.6782189994     1.6782189994     4.7741117417   !! Atomic positions
+K_POINTS {crystal_b}
+7
+  0.00000  0.00000 0.000000 45  !G                      !! K-point coordinates and weights
+  0.00000  0.00000 0.5000   75  !X                      !! K-point coordinates and weights
+  0.45693  0.00000 0.27153  26  !M                      !! K-point coordinates and weights
+  0.50000  0.00000 0.0000   26  !Y                      !! K-point coordinates and weights
+  0.54307  0.00000 -0.27153 93  !K                      !! K-point coordinates and weights
+  0.45693  0.45693 0.0430  120  !F                      !! K-point coordinates and weights
+  0.00000  0.00000 0.0000    1  !G                      !! K-point coordinates and weights
+CELL_PARAMETERS angstrom
+   -1.6782189994     1.6782189994     5.7182249983      !! Cell parameters
+    1.6782189994    -1.6782189994     5.7182249983      !! Cell parameters
+    1.6782189994     1.6782189994    -5.7182249983      !! Cell parameters

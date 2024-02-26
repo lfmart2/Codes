@@ -4,18 +4,13 @@ using CSV
 using Plots.PlotMeasures
 
 
-const LINE_WIDTH = 0.75
-const LINE_COLOR = [:red, :black]
-const FILL_ALPHA = 0.5
-const ANNOTATE_POSITION = -0.2
-const ANNOTATE_SIZE = 12
 
 # Files to lead the QE output data
-const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/nscf.out"
+const FILE_FE = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/W.16.Bulk/nscf.out"
 const FILE_DOS = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/NbP_spin/NbP_pdos.dat.pdos_tot"
 const FILE_SYM = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/NbP_band.labelinfo.dat"
 const FILE_BAND = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/bands.scf.dat.gnu"
-const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/Local/Bulk/NbP_band.dat"
+const FILE_BAND1 = raw"/home/r_floren/BandStructure/QE/NbP/github/Outputs/fire_cluster/W.16.Bulk/NbP_band.dat"
 
 
 function openfile(data::String)
@@ -60,6 +55,13 @@ end
     
 function Band_structure_plot(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PATH_FE::String)
     p1 = plot();
+    # Parameters for the plot
+    const LINE_WIDTH = 0.75
+    const LINE_COLOR = [:red, :black]
+    const FILL_ALPHA = 0.5
+    const ANNOTATE_POSITION = -0.2
+    const ANNOTATE_SIZE = 12
+
     data = readdlm(FILE_PATH_BS)
     fermi_energy = extract_fermi_energy(FILE_PATH_FE)
     vc_size = findall(x->x==0.0, data[:,1])
@@ -70,12 +72,12 @@ function Band_structure_plot(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PAT
     hline!(p1,[fermi_energy],lw=0.75,lc=:black,ls=:dashdot,label=false)
     vline!(p1,readdlm(FILE_PATH_SYM)[:,3]./readdlm(FILE_PATH_SYM)[end,3], lw=1,lc=:black,ls=:solid,label=false)
     plot!(p1,xlims=(0,1),grid=false, ylabel="Energy (eV)")
-    plot!(p1,ylim=(8,18.5), xticks = (readdlm(FILE_PATH_SYM)[:,3]./readdlm(FILE_PATH_SYM)[end,3],["\$\\Gamma \$","\$X \$","\$ M \$","\$ Y \$","\$ K \$","\$ F \$","\$ \\Gamma \$"]))
+    plot!(p1,ylim=(8,22), xticks = (readdlm(FILE_PATH_SYM)[:,3]./readdlm(FILE_PATH_SYM)[end,3],["\$\\Gamma \$","\$X \$","\$ M \$","\$ Y \$","\$ K \$","\$ F \$","\$ \\Gamma \$"]))
     annotate!(p1,1.5,fermi_energy+0.2, Plots.text("Fermi energy", 8))
     display(p1)
 end
 
-function Band_structure_plot1(FILE_PATH_BS::String,FILE_PATH_SYM::String,FILE_PATH_FE::String)
+function Band_structure_plot1(FILE_PATH_BS::String)
     data = readdlm(FILE_PATH_BS)
     vc_size = findall(x->x==0.0, data[:,1])
     for i in 1:length(vc_size)-1
