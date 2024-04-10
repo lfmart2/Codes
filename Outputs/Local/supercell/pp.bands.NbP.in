@@ -1,5 +1,0 @@
-&BANDS
-  prefix = 'NbP.supercell'
-  outdir = './out/'
-  filband = 'NbP_bands.dat'
-/
