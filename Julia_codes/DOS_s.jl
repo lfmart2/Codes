@@ -53,6 +53,7 @@ function plot_dos(FILE_PATH_DOS::String, FILE_PATH_FE::String)
     annotate!(p, fermi_energy + ANNOTATE_POSITION, 5, Plots.text("Fermi energy", ANNOTATE_SIZE, :dark, rotation = 90 ))
     display(p)
 end
+readdlm
 
 function sym_points(FILE_PATH::String)
     sym_points = openfile(FILE_PATH)
