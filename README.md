@@ -1,2 +1,2 @@
-# NbP
-This file contains the output files used for post-processing. Including the input files
+# README
+This file contains a summary of codes and data for electronic structure calculations
