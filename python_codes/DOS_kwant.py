@@ -130,19 +130,18 @@ def _load_hydrogen_block_keys(
 def coupling_hydrogen_slab(
     R_vec: tuple[int, int, int],
     num_slab: int,
-    num_molecules: int,
     mol_distance: np.ndarray,
     file_path: str | Path,
 ) -> np.ndarray:
     """Compute hydrogen coupling block for a given lattice vector."""
-    hydrogen_orbitals = 2 * num_molecules
+    hydrogen_orbitals = 2
     final_block = np.zeros(
         (num_slab + hydrogen_orbitals, num_slab + hydrogen_orbitals), dtype=complex
     )
-    rows_up = np.arange(0, mol_distance.size, 2, dtype=int)
-    rows_dn = rows_up + 1
-    dist_up = mol_distance[0::2]
-    dist_dn = mol_distance[1::2]
+    rows_up = np.array([0], dtype=int)
+    rows_dn = np.array([1], dtype=int)
+    dist_up = mol_distance[:1]
+    dist_dn = mol_distance[1:2]
     list_Ri = _load_hydrogen_block_keys(str(file_path), R_vec)
     with h5py.File(file_path, "r") as file:
         block_interaction = file[f"[{R_vec[0]},{R_vec[1]},{R_vec[2]}]"]
@@ -173,12 +172,11 @@ def coupling_hydrogen_slab(
 
 def iter_hoppings_with_hydrogen(
     hr: HRData,
-    num_molecules: int,
     mol_distance: np.ndarray,
     coupling_file: str | Path,
 ) -> Iterable[tuple[tuple[int, int, int], np.ndarray]]:
     """Yield non-onsite hopping blocks with hydrogen coupling added."""
-    hydrogen_orbitals = 2 * num_molecules
+    hydrogen_orbitals = 2
     block = np.zeros(
         (hr.num_wann + hydrogen_orbitals, hr.num_wann + hydrogen_orbitals),
         dtype=complex,
@@ -194,7 +192,6 @@ def iter_hoppings_with_hydrogen(
         hydrogen_block = coupling_hydrogen_slab(
             R_vec,
             num_slab=hr.num_wann,
-            num_molecules=num_molecules,
             mol_distance=mol_distance,
             file_path=coupling_file,
         )
@@ -210,8 +207,7 @@ def build_supercell_with_hydrogen(
     poly_coeffs_dn: list[float],
 ) -> kwant.system.FiniteSystem:
     """Build a 2D supercell including hydrogen coupling data."""
-    num_molecules = ((Lx + 1) // 2) * ((Ly + 1) // 2)
-    hydrogen_orbitals = 2 * num_molecules
+    hydrogen_orbitals = 2
     norb = hr.num_wann + hydrogen_orbitals
     lat = kwant.lattice.square(norbs=norb)
     syst = kwant.Builder()
@@ -226,25 +222,15 @@ def build_supercell_with_hydrogen(
             ].copy()
             break
 
-    mol_sites: dict[tuple[int, int], int] = {}
-    mol_idx = 0
-    for x in range(0, Lx, 2):
-        for y in range(0, Ly, 2):
-            mol_sites[(x, y)] = mol_idx
-            mol_idx += 2
-
     for x in range(Lx):
         for y in range(Ly):
             onsite = onsite_block.copy()
-            mol_idx = mol_sites.get((x, y))
-            if mol_idx is not None:
-                onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[mol_idx])
-                onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[mol_idx + 1])
+            onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[0])
+            onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[1])
             syst[lat(x, y)] = onsite
 
     for (Rx, Ry, Rz), hop_block in iter_hoppings_with_hydrogen(
         hr,
-        num_molecules=num_molecules,
         mol_distance=mol_distance,
         coupling_file=coupling_file,
     ):
