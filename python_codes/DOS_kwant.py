@@ -127,13 +127,12 @@ def _load_hydrogen_block_keys(
         return list(block_interaction.keys())
 
 
-def coupling_hydrogen_slab(
-    R_vec: tuple[int, int, int],
+def _coupling_hydrogen_slab_from_file(
+    block_interaction: h5py.Group,
+    r_vec: tuple[int, int, int],
     num_slab: int,
     mol_distance: np.ndarray,
-    file_path: str | Path,
 ) -> np.ndarray:
-    """Compute hydrogen coupling block for a given lattice vector."""
     hydrogen_orbitals = 2
     final_block = np.zeros(
         (num_slab + hydrogen_orbitals, num_slab + hydrogen_orbitals), dtype=complex
@@ -142,32 +141,44 @@ def coupling_hydrogen_slab(
     rows_dn = np.array([1], dtype=int)
     dist_up = mol_distance[:1]
     dist_dn = mol_distance[1:2]
-    list_Ri = _load_hydrogen_block_keys(str(file_path), R_vec)
+    list_Ri = _load_hydrogen_block_keys(block_interaction.file.filename, r_vec)
+    for label in list_Ri:
+        if label.endswith("_im"):
+            continue
+        mapping = coupling_hydrogen_slab_mapping(label)
+        if mapping is None:
+            continue
+        spin_index, interaction_indices = mapping
+        data_re = block_interaction[label]
+        data_im = block_interaction[f"{label}_im"]
+        if spin_index == 0:
+            distances = dist_up
+            rows = rows_up
+        else:
+            distances = dist_dn
+            rows = rows_dn
+        values = (
+            distances[:, None] * data_re[:, 1][None, :] + data_re[:, 0][None, :]
+        ) + 1j * (
+            distances[:, None] * data_im[:, 1][None, :] + data_im[:, 0][None, :]
+        )
+        cols = interaction_indices + hydrogen_orbitals
+        final_block[np.ix_(rows, cols)] += values
+    return final_block
+
+
+def coupling_hydrogen_slab(
+    R_vec: tuple[int, int, int],
+    num_slab: int,
+    mol_distance: np.ndarray,
+    file_path: str | Path,
+) -> np.ndarray:
+    """Compute hydrogen coupling block for a given lattice vector."""
     with h5py.File(file_path, "r") as file:
         block_interaction = file[f"[{R_vec[0]},{R_vec[1]},{R_vec[2]}]"]
-        for label in list_Ri:
-            if label.endswith("_im"):
-                continue
-            mapping = coupling_hydrogen_slab_mapping(label)
-            if mapping is None:
-                continue
-            spin_index, interaction_indices = mapping
-            data_re = block_interaction[label]
-            data_im = block_interaction[f"{label}_im"]
-            if spin_index == 0:
-                distances = dist_up
-                rows = rows_up
-            else:
-                distances = dist_dn
-                rows = rows_dn
-            values = (
-                distances[:, None] * data_re[:, 1][None, :] + data_re[:, 0][None, :]
-            ) + 1j * (
-                distances[:, None] * data_im[:, 1][None, :] + data_im[:, 0][None, :]
-            )
-            cols = interaction_indices + hydrogen_orbitals
-            final_block[np.ix_(rows, cols)] += values
-    return final_block
+        return _coupling_hydrogen_slab_from_file(
+            block_interaction, R_vec, num_slab, mol_distance
+        )
 
 
 def iter_hoppings_with_hydrogen(
@@ -207,12 +218,15 @@ def build_supercell_with_hydrogen(
     poly_coeffs_dn: list[float],
 ) -> kwant.system.FiniteSystem:
     """Build a 2D supercell including hydrogen coupling data."""
+    num_molecules = (Lx * Ly) // 2
     hydrogen_orbitals = 2
     norb = hr.num_wann + hydrogen_orbitals
     lat = kwant.lattice.square(norbs=norb)
     syst = kwant.Builder()
 
-    mol_distance = np.random.uniform(-0.6, 0.6, size=hydrogen_orbitals)
+    mol_distance = np.random.uniform(
+        -0.6, 0.6, size=hydrogen_orbitals * num_molecules
+    )
 
     onsite_block = np.zeros((norb, norb), dtype=complex)
     for idx in range(hr.nrpts):
@@ -222,27 +236,58 @@ def build_supercell_with_hydrogen(
             ].copy()
             break
 
+    mol_sites: dict[tuple[int, int], int] = {}
+    mol_idx = 0
+    for x in range(Lx):
+        for y in range(Ly):
+            if (x + y) % 2 != 0:
+                continue
+            if mol_idx >= mol_distance.size:
+                continue
+            mol_sites[(x, y)] = mol_idx
+            mol_idx += 2
+
     for x in range(Lx):
         for y in range(Ly):
             onsite = onsite_block.copy()
-            onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[0])
-            onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[1])
+            mol_idx = mol_sites.get((x, y))
+            if mol_idx is not None:
+                onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[mol_idx])
+                onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[mol_idx + 1])
             syst[lat(x, y)] = onsite
 
-    for (Rx, Ry, Rz), hop_block in iter_hoppings_with_hydrogen(
-        hr,
-        mol_distance=mol_distance,
-        coupling_file=coupling_file,
-    ):
-        if Rz != 0:
-            continue
-        for x in range(Lx):
-            for y in range(Ly):
-                x2 = (x + Rx) % Lx
-                y2 = (y + Ry) % Ly
-                s1 = lat(x, y)
-                s2 = lat(x2, y2)
-                syst[s1, s2] = hop_block
+    coupling_cache: dict[tuple[tuple[int, int, int], int], np.ndarray] = {}
+    with h5py.File(coupling_file, "r") as file:
+        for idx in range(hr.nrpts):
+            R_vec = tuple(int(v) for v in hr.R[:, idx])
+            if R_vec == (0, 0, 0):
+                continue
+            if R_vec[2] != 0:
+                continue
+            base_block = np.zeros((norb, norb), dtype=complex)
+            base_block[hydrogen_orbitals:, hydrogen_orbitals:] = (
+                hr.H_R[:, :, idx] / hr.weight[idx]
+            )
+            block_interaction = file[f"[{R_vec[0]},{R_vec[1]},{R_vec[2]}]"]
+            for x in range(Lx):
+                for y in range(Ly):
+                    x2 = (x + R_vec[0]) % Lx
+                    y2 = (y + R_vec[1]) % Ly
+                    s1 = lat(x, y)
+                    s2 = lat(x2, y2)
+                    mol_idx = mol_sites.get((x, y))
+                    if mol_idx is None:
+                        syst[s1, s2] = base_block
+                        continue
+                    cache_key = (R_vec, mol_idx)
+                    hydrogen_block = coupling_cache.get(cache_key)
+                    if hydrogen_block is None:
+                        mol_pair = mol_distance[mol_idx : mol_idx + 2]
+                        hydrogen_block = _coupling_hydrogen_slab_from_file(
+                            block_interaction, R_vec, hr.num_wann, mol_pair
+                        )
+                        coupling_cache[cache_key] = hydrogen_block
+                    syst[s1, s2] = base_block + hydrogen_block
 
     return syst.finalized()
 
