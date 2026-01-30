@@ -316,6 +316,94 @@ def compute_hydrogen_ldos(
     return results
 
 
+def save_hydrogen_ldos_csv(
+    ldos_by_site: dict[kwant.builder.Site, dict[str, np.ndarray]],
+    energy_grid: np.ndarray,
+    output_path: str | Path,
+) -> None:
+    """Save hydrogen LDOS (up/down) for each site to a CSV file."""
+    import pandas as pd
+
+    data: dict[str, np.ndarray] = {"Energies": np.asarray(energy_grid)}
+    for site, spin_ldos in ldos_by_site.items():
+        x, y = site.tag
+        data[f"H_{x}_{y}_up"] = spin_ldos["up"]
+        data[f"H_{x}_{y}_down"] = spin_ldos["down"]
+    df = pd.DataFrame(data)
+    df.to_csv(output_path, index=False)
+
+
+def compute_hydrogen_pdos_kpm(
+    fsys: kwant.system.FiniteSystem,
+    mol_sites: dict[tuple[int, int], int],
+    *,
+    orbital_up: int = 0,
+    orbital_down: int = 1,
+    energy_grid: np.ndarray | None = None,
+    num_moments: int = 1500,
+    num_vectors: int = 30,
+    rng_seed: int | None = 0,
+) -> tuple[np.ndarray, list[tuple[int, int]], np.ndarray, np.ndarray]:
+    """Compute hydrogen PDOS for two orbitals using KPM + custom operator.
+
+    Returns
+    -------
+    energies : (NE,)
+    coords : list of (x, y) in mol_sites order
+    pdos_up : (NE, Ns)
+    pdos_down : (NE, Ns)
+    """
+    norb = fsys.sites[0].family.norbs
+    coords = [xy for xy, _ in sorted(mol_sites.items(), key=lambda kv: kv[1])]
+    coords_set = set(coords)
+
+    site_to_id = {site: i for i, site in enumerate(fsys.sites)}
+    dof_up: list[int] = []
+    dof_down: list[int] = []
+    for site in fsys.sites:
+        xy = tuple(site.tag)
+        if xy in coords_set:
+            sid = site_to_id[site]
+            dof_up.append(sid * norb + orbital_up)
+            dof_down.append(sid * norb + orbital_down)
+
+    dof_up = np.asarray(dof_up, dtype=int)
+    dof_down = np.asarray(dof_down, dtype=int)
+
+    if len(dof_up) != len(coords):
+        missing = [xy for xy in coords if xy not in {tuple(s.tag) for s in fsys.sites}]
+        raise ValueError(
+            f"Requested {len(coords)} sites, matched {len(dof_up)}. Missing? {missing[:10]}"
+        )
+
+    def op(bra: np.ndarray, ket: np.ndarray, **_params: object) -> np.ndarray:
+        v_up = np.conjugate(bra[dof_up]) * ket[dof_up]
+        v_down = np.conjugate(bra[dof_down]) * ket[dof_down]
+        return np.concatenate([v_up, v_down])
+
+    rng = np.random.default_rng(rng_seed)
+    spectrum = kwant.kpm.SpectralDensity(
+        fsys,
+        operator=op,
+        num_moments=num_moments,
+        num_vectors=num_vectors,
+        rng=rng,
+        mean=True,
+    )
+    if energy_grid is None:
+        energies, dens = spectrum()
+    else:
+        energies, dens = spectrum(np.asarray(energy_grid))
+    dens = np.asarray(dens)
+
+    num_sites = len(coords)
+    dens_2 = dens.reshape(len(energies), 2, num_sites)
+    pdos_up = dens_2[:, 0, :]
+    pdos_down = dens_2[:, 1, :]
+
+    return energies, coords, pdos_up, pdos_down
+
+
 def report_system_size(fsys: kwant.system.FiniteSystem) -> None:
     H = fsys.hamiltonian_submatrix(sparse=True).tocsr()
     n = H.shape[0]
