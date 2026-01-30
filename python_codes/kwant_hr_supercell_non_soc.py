@@ -88,31 +88,28 @@ def load_hr(path: str | Path) -> HRData:
         )
 
 
-def _build_hydrogen_coupling_map() -> dict[str, tuple[int, np.ndarray]]:
-    mapping: dict[str, tuple[int, np.ndarray]] = {}
+def _build_hydrogen_coupling_map() -> dict[str, np.ndarray]:
+    mapping: dict[str, np.ndarray] = {}
     layer_specs = {
-        "first_d_layer": (range(2, 12, 2), range(3, 12, 2)),
-        "second_d_layer": (range(12, 22, 2), range(13, 22, 2)),
-        "third_d_layer": (range(22, 32, 2), range(23, 32, 2)),
-        "first_sp_layer": (range(280, 288, 2), range(281, 288, 2)),
-        "second_sp_layer": (range(288, 296, 2), range(289, 296, 2)),
-        "third_sp_layer": (range(296, 304, 2), range(297, 304, 2)),
+        "first_d_layer": range(0, 5),
+        "second_d_layer": range(5, 10),
+        "third_d_layer": range(10, 15),
+        "first_sp_layer": range(140, 144),
+        "second_sp_layer": range(144, 148),
+        "third_sp_layer": range(148, 152),
     }
-    for prefix, (even_range, odd_range) in layer_specs.items():
-        even_idx = np.fromiter(even_range, dtype=int)
-        odd_idx = np.fromiter(odd_range, dtype=int)
-        for spin_index, spin_label in enumerate(("up", "dn")):
-            for target_label, target_idx in (("up", even_idx), ("dn", odd_idx)):
-                for suffix in ("", "_im"):
-                    label = f"{prefix}_{spin_label}_{target_label}{suffix}"
-                    mapping[label] = (spin_index, target_idx)
+    for prefix, interaction_range in layer_specs.items():
+        interaction_idx = np.fromiter(interaction_range, dtype=int)
+        for suffix in ("", "_im"):
+            label = f"{prefix}{suffix}"
+            mapping[label] = interaction_idx
     return mapping
 
 
 HYDROGEN_COUPLING_MAP = _build_hydrogen_coupling_map()
 
 
-def coupling_hydrogen_slab_mapping(label: str) -> tuple[int, np.ndarray] | None:
+def coupling_hydrogen_slab_mapping(label: str) -> np.ndarray | None:
     """Map hydrogen coupling labels to integer indices."""
     return HYDROGEN_COUPLING_MAP.get(label)
 
@@ -129,149 +126,115 @@ def _load_hydrogen_block_keys(
 def coupling_hydrogen_slab(
     R_vec: tuple[int, int, int],
     num_slab: int,
-    num_molecules: int,
     mol_distance: np.ndarray,
     file_path: str | Path,
+    x: int,
+    y: int,
+    Lx: int,
+    Ly: int,
+    mol_sites: dict[tuple[int, int], int],
 ) -> np.ndarray:
     """Compute hydrogen coupling block for a given lattice vector."""
-    hydrogen_orbitals = 2 * num_molecules
+    hydrogen_orbitals = 1
     final_block = np.zeros(
         (num_slab + hydrogen_orbitals, num_slab + hydrogen_orbitals), dtype=complex
-    final_block = np.zeros(
-        (num_slab + num_molecules, num_slab + num_molecules), dtype=complex
     )
-    rows_up = np.arange(0, mol_distance.size, 2, dtype=int)
-    rows_dn = rows_up + 1
-    dist_up = mol_distance[0::2]
-    dist_dn = mol_distance[1::2]
+    rows = np.array([0], dtype=int)
+    src_idx = mol_sites.get((x, y))
+    dst_idx = mol_sites.get(((x + R_vec[0]) % Lx, (y + R_vec[1]) % Ly))
+    has_src = src_idx is not None
+    has_dst = dst_idx is not None
+    if not has_src and not has_dst:
+        return final_block
+    distances = (
+        np.array([mol_distance[src_idx]], dtype=float) if has_src else np.array([])
+    )
+    distances_conj = (
+        np.array([mol_distance[dst_idx]], dtype=float) if has_dst else np.array([])
+    )
+
     list_Ri = _load_hydrogen_block_keys(str(file_path), R_vec)
     with h5py.File(file_path, "r") as file:
         block_interaction = file[f"[{R_vec[0]},{R_vec[1]},{R_vec[2]}]"]
         for label in list_Ri:
             if label.endswith("_im"):
                 continue
-            mapping = coupling_hydrogen_slab_mapping(label)
-            if mapping is None:
+            interaction_indices = coupling_hydrogen_slab_mapping(label)
+            if interaction_indices is None:
                 continue
-            spin_index, interaction_indices = mapping
             data_re = block_interaction[label]
             data_im = block_interaction[f"{label}_im"]
-            coeffs_re = np.vstack([data_re[:, 1], data_re[:, 0]])
-            coeffs_im = np.vstack([data_im[:, 1], data_im[:, 0]])
-            if spin_index == 0:
-                distances = dist_up
-                rows = rows_up
-            else:
-                distances = dist_dn
-                rows = rows_dn
-            values = (
-                distances[:, None] * data_re[:, 1][None, :] + data_re[:, 0][None, :]
-            ) + 1j * (
-                distances[:, None] * data_im[:, 1][None, :] + data_im[:, 0][None, :]
-            )
             cols = interaction_indices + hydrogen_orbitals
-            final_block[np.ix_(rows, cols)] += values
-            values = np.polyval(coeffs_re, distances) + 1j * np.polyval(
-                coeffs_im, distances
-            )
-            cols = interaction_indices + num_molecules
-            final_block[np.ix_(rows, cols)] += values.T
+            if has_src:
+                values = (
+                    distances[:, None] * data_re[:, 1][None, :]
+                    + data_re[:, 0][None, :]
+                ) + 1j * (
+                    distances[:, None] * data_im[:, 1][None, :]
+                    + data_im[:, 0][None, :]
+                )
+                final_block[np.ix_(rows, cols)] += values
+            if has_dst:
+                values_conj = (
+                    distances_conj[:, None] * data_re[:, 1][None, :]
+                    + data_re[:, 0][None, :]
+                ) - 1j * (
+                    distances_conj[:, None] * data_im[:, 1][None, :]
+                    + data_im[:, 0][None, :]
+                )
+                final_block[np.ix_(cols, rows)] += values_conj.T
     return final_block
 
 
-def iter_hoppings(
-    hr: HRData, tol_block: float | None = 1e-12
-) -> Iterable[tuple[tuple[int, int, int], np.ndarray]]:
-    """Yield non-onsite hopping blocks as (R, block)."""
-    for idx in range(hr.nrpts):
-        R_vec = tuple(int(v) for v in hr.R[:, idx])
-        if R_vec == (0, 0, 0):
-            continue
-
-        block = hr.H_R[:, :, idx] / hr.weight[idx]
-        if tol_block is not None and np.max(np.abs(block)) < tol_block:
-            continue
-        yield R_vec, block
+def _rvec_is_positive(r_vec: tuple[int, int, int]) -> bool:
+    Rx, Ry, Rz = r_vec
+    return (Rz > 0) or (Rz == 0 and Ry > 0) or (Rz == 0 and Ry == 0 and Rx > 0)
 
 
 def iter_hoppings_with_hydrogen(
     hr: HRData,
-    num_molecules: int,
     mol_distance: np.ndarray,
     coupling_file: str | Path,
-    tol_block: float | None = 1e-12,
+    x: int,
+    y: int,
+    Lx: int,
+    Ly: int,
+    mol_sites: dict[tuple[int, int], int],
 ) -> Iterable[tuple[tuple[int, int, int], np.ndarray]]:
     """Yield non-onsite hopping blocks with hydrogen coupling added."""
-    hydrogen_orbitals = 2 * num_molecules
+    hydrogen_orbitals = 1
     block = np.zeros(
         (hr.num_wann + hydrogen_orbitals, hr.num_wann + hydrogen_orbitals),
         dtype=complex,
     )
-    block = np.zeros((hr.num_wann + num_molecules, hr.num_wann + num_molecules), dtype=complex)
     for idx in range(hr.nrpts):
         R_vec = tuple(int(v) for v in hr.R[:, idx])
         if R_vec == (0, 0, 0):
+            continue
+        if not _rvec_is_positive(R_vec):
+            continue
+        if R_vec[2] != 0:
             continue
         block[:, :] = 0.0
         block[hydrogen_orbitals:, hydrogen_orbitals:] = (
             hr.H_R[:, :, idx] / hr.weight[idx]
         )
-        if tol_block is not None and np.max(np.abs(block)) < tol_block:
+        dst_site = ((x + R_vec[0]) % Lx, (y + R_vec[1]) % Ly)
+        if (x, y) not in mol_sites and dst_site not in mol_sites:
+            yield R_vec, block
             continue
         hydrogen_block = coupling_hydrogen_slab(
             R_vec,
             num_slab=hr.num_wann,
-            num_molecules=num_molecules,
             mol_distance=mol_distance,
             file_path=coupling_file,
+            x=x,
+            y=y,
+            Lx=Lx,
+            Ly=Ly,
+            mol_sites=mol_sites,
         )
         yield R_vec, block + hydrogen_block
-
-
-def build_supercell_from_hr(
-    hr: HRData,
-    Lx: int,
-    Ly: int,
-    disorder_strength: float = 0.0,
-    tol_block: float | None = 1e-12,
-    seed: int | None = None,
-) -> kwant.system.FiniteSystem:
-    """Build a 2D supercell from Wannier90 HR data with PBC in x/y."""
-    norb = hr.num_wann
-    lat = kwant.lattice.square(norbs=norb)
-    syst = kwant.Builder()
-
-    onsite_block = np.zeros((norb, norb), dtype=complex)
-    for idx in range(hr.nrpts):
-        if np.all(hr.R[:, idx] == 0):
-            onsite_block = hr.H_R[:, :, idx].copy()
-            break
-
-    rng = np.random.default_rng(seed)
-
-    for x in range(Lx):
-        for y in range(Ly):
-            onsite = onsite_block.copy()
-            if disorder_strength:
-                shift = disorder_strength * (rng.random(norb) - 0.5)
-                onsite += np.diag(shift)
-            syst[lat(x, y)] = onsite
-
-    for (Rx, Ry, Rz), hop_block in iter_hoppings(hr, tol_block=tol_block):
-        if Rz != 0:
-            continue
-        for x in range(Lx):
-            for y in range(Ly):
-                x2 = (x + Rx) % Lx
-                y2 = (y + Ry) % Ly
-                s1 = lat(x, y)
-                s2 = lat(x2, y2)
-                if (s1, s2) in syst:
-                    syst[s1, s2] = syst[s1, s2] + hop_block
-                else:
-                    syst[s1, s2] = hop_block
-
-    return syst.finalized()
 
 
 def build_supercell_with_hydrogen(
@@ -280,18 +243,17 @@ def build_supercell_with_hydrogen(
     Ly: int,
     coupling_file: str | Path,
     poly_coeffs_up: list[float],
-    poly_coeffs_dn: list[float],
-    tol_block: float | None = 1e-12,
     seed: int | None = None,
 ) -> kwant.system.FiniteSystem:
-    """Build a 2D supercell including hydrogen coupling data."""
-    num_molecules = Lx * Ly // 2
-    norb = hr.num_wann + num_molecules
+    """Build a 2D supercell including hydrogen coupling data (non-SOC)."""
+    num_molecules = (Lx * Ly) // 2
+    hydrogen_orbitals = 1
+    norb = hr.num_wann + hydrogen_orbitals
     lat = kwant.lattice.square(norbs=norb)
     syst = kwant.Builder()
 
     rng = np.random.default_rng(seed)
-    mol_distance = rng.uniform(-0.6, 0.6, size=hydrogen_orbitals)
+    mol_distance = rng.uniform(-0.6, 0.6, size=hydrogen_orbitals * num_molecules)
 
     onsite_block = np.zeros((norb, norb), dtype=complex)
     for idx in range(hr.nrpts):
@@ -303,10 +265,14 @@ def build_supercell_with_hydrogen(
 
     mol_sites: dict[tuple[int, int], int] = {}
     mol_idx = 0
-    for x in range(0, Lx, 2):
-        for y in range(0, Ly, 2):
+    for x in range(Lx):
+        for y in range(Ly):
+            if (x + y) % 2 != 0:
+                continue
+            if mol_idx >= mol_distance.size:
+                continue
             mol_sites[(x, y)] = mol_idx
-            mol_idx += 2
+            mol_idx += hydrogen_orbitals
 
     for x in range(Lx):
         for y in range(Ly):
@@ -314,20 +280,20 @@ def build_supercell_with_hydrogen(
             mol_idx = mol_sites.get((x, y))
             if mol_idx is not None:
                 onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[mol_idx])
-                onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[mol_idx + 1])
             syst[lat(x, y)] = onsite
 
-    for (Rx, Ry, Rz), hop_block in iter_hoppings_with_hydrogen(
-        hr,
-        num_molecules=num_molecules,
-        mol_distance=mol_distance,
-        coupling_file=coupling_file,
-        tol_block=tol_block,
-    ):
-        if Rz != 0:
-            continue
-        for x in range(Lx):
-            for y in range(Ly):
+    for x in range(Lx):
+        for y in range(Ly):
+            for (Rx, Ry, Rz), hop_block in iter_hoppings_with_hydrogen(
+                hr,
+                mol_distance=mol_distance,
+                coupling_file=coupling_file,
+                x=x,
+                y=y,
+                Lx=Lx,
+                Ly=Ly,
+                mol_sites=mol_sites,
+            ):
                 x2 = (x + Rx) % Lx
                 y2 = (y + Ry) % Ly
                 s1 = lat(x, y)
@@ -371,29 +337,13 @@ def estimate_dos(
 
 if __name__ == "__main__":
     hr = load_hr("wannier90_hr_r0.dat")
-    coupling_file = "SOC_linregress_by_R.h5"
-
-    poly_coeffs_up = [
-        2.0127743055555554,
-        -0.2429976190476202,
-        -0.09279894841269883,
-        5.44317319047619,
-    ]
-    poly_coeffs_dn = [
-        1.5496388888888881,
-        -0.19418601190476167,
-        0.051376289682539204,
-        5.424151619047619,
-    ]
 
     fsys = build_supercell_with_hydrogen(
         hr,
         Lx=10,
         Ly=10,
-        coupling_file=coupling_file,
-        poly_coeffs_up=poly_coeffs_up,
-        poly_coeffs_dn=poly_coeffs_dn,
-        tol_block=1e-3,
+        coupling_file="hydrogen_interaction_data.h5",
+        poly_coeffs_up=[0.0, 0.0, 0.0],
         seed=1234,
     )
     report_system_size(fsys)
