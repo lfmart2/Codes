@@ -9,7 +9,7 @@ import h5py
 import kwant
 import numpy as np
 import sys
-
+import pandas as pd
 
 @dataclass(slots=True)
 class HRData:
@@ -18,7 +18,6 @@ class HRData:
     R: np.ndarray
     weight: np.ndarray
     H_R: np.ndarray
-
 
 def load_hr(path: str | Path) -> HRData:
     """Load Wannier90 real-space Hamiltonian (wannier90_hr.dat).
@@ -87,14 +86,14 @@ def load_hr(path: str | Path) -> HRData:
             weight=weight_arr[:nr_eff],
             H_R=H_R[:, :, :nr_eff],
         )
-
+    # update the new Fermi energies accordingly woth the SCF calculations instead of the NSCCF -> Wannier90 calculations
 
 def _build_hydrogen_coupling_map() -> dict[str, tuple[int, int, np.ndarray]]:
     mapping: dict[str, tuple[int, int, np.ndarray]] = {}
     layer_specs = {
-        "first_d_layer": (range(2, 12, 2), range(3, 12, 2)),
-        "second_d_layer": (range(12, 22, 2), range(13, 22, 2)),
-        "third_d_layer": (range(22, 32, 2), range(23, 32, 2)),
+        "first_d_layer": (range(0, 10, 2), range(1, 10, 2)),
+        "second_d_layer": (range(10, 20, 2), range(11, 20, 2)),
+        "third_d_layer": (range(20, 30, 2), range(21, 30, 2)),
         "first_sp_layer": (range(280, 288, 2), range(281, 288, 2)),
         "second_sp_layer": (range(288, 296, 2), range(289, 296, 2)),
         "third_sp_layer": (range(296, 304, 2), range(297, 304, 2)),
@@ -125,14 +124,13 @@ def coupling_hydrogen_slab_mapping(
     return HYDROGEN_COUPLING_MAP.get(label)
 
 
-@lru_cache(maxsize=32)
+# @lru_cache(maxsize=32)
 def _load_hydrogen_block_keys(
     file_path: str, r_vec: tuple[int, int, int]
 ) -> list[str]:
     with h5py.File(file_path, "r") as file:
         block_interaction = file[f"[{r_vec[0]},{r_vec[1]},{r_vec[2]}]"]
         return list(block_interaction.keys())
-
 
 def coupling_hydrogen_slab(
     R_vec: tuple[int, int, int],
@@ -196,11 +194,15 @@ def coupling_hydrogen_slab(
                     distances = dist_dn
                     rows = rows_dn
                 values = (
-                    distances[:, None] * data_re[:, 1][None, :]
-                    + data_re[:, 0][None, :]
-                ) + 1j * (
-                    distances[:, None] * data_im[:, 1][None, :]
-                    + data_im[:, 0][None, :]
+                    data_re[:, 3][None, :] * distances[:, None] ** 3 +
+                    data_re[:, 2][None, :] * distances[:, None] ** 2 +
+                    data_re[:, 1][None, :] * distances[:, None] +
+                    data_re[:, 0][None, :]
+               ) + 1j * (
+                    data_im[:, 3][None, :] * distances[:, None] ** 3 +
+                    data_im[:, 2][None, :] * distances[:, None] ** 2 +
+                    data_im[:, 1][None, :] * distances[:, None] +
+                    data_im[:, 0][None, :]
                 )
                 final_block[np.ix_(rows, cols)] += values
             if has_dst:
@@ -211,11 +213,15 @@ def coupling_hydrogen_slab(
                     distances_conj = dist_dn_conj
                     rows_conj = rows_dn
                 values_conj = (
-                    distances_conj[:, None] * data_re[:, 1][None, :]
-                    + data_re[:, 0][None, :]
-                ) - 1j * (
-                    distances_conj[:, None] * data_im[:, 1][None, :]
-                    + data_im[:, 0][None, :]
+                    data_re[:, 3][None, :] * distances_conj[:, None] ** 3 +
+                    data_re[:, 2][None, :] * distances_conj[:, None] ** 2 +
+                    data_re[:, 1][None, :] * distances_conj[:, None] +
+                    data_re[:, 0][None, :]
+                ) + 1j * (
+                    data_im[:, 3][None, :] * distances_conj[:, None] ** 3 +
+                    data_im[:, 2][None, :] * distances_conj[:, None] ** 2 +
+                    data_im[:, 1][None, :] * distances_conj[:, None] +
+                    data_im[:, 0][None, :]
                 )
                 final_block[np.ix_(cols, rows_conj)] += values_conj.T
     return final_block
@@ -224,7 +230,6 @@ def coupling_hydrogen_slab(
 def _rvec_is_positive(r_vec: tuple[int, int, int]) -> bool:
     Rx, Ry, Rz = r_vec
     return (Rz > 0) or (Rz == 0 and Ry > 0) or (Rz == 0 and Ry == 0 and Rx > 0)
-
 
 def iter_hoppings_with_hydrogen(
     hr: HRData,
@@ -308,7 +313,7 @@ def build_supercell_with_hydrogen(
             if mol_idx >= mol_distance.size:
                 continue
             mol_sites[(x, y)] = mol_idx
-            mol_idx += 2
+            mol_idx += hydrogen_orbitals
 
     for x in range(Lx):
         for y in range(Ly):
@@ -339,7 +344,6 @@ def build_supercell_with_hydrogen(
 
     return syst.finalized()
 
-
 def report_system_size(fsys: kwant.system.FiniteSystem) -> None:
     H = fsys.hamiltonian_submatrix(sparse=True).tocsr()
     n = H.shape[0]
@@ -355,25 +359,22 @@ def report_system_size(fsys: kwant.system.FiniteSystem) -> None:
     print(f"Dense H would be: {n * n * 16 / 1024**3:.2f} GB")
     print("---------------------------------")
 
-
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         raise SystemExit("Usage: python DOS_kwant.py <wannier90_hr.dat> <output.csv>")
     hr = load_hr(sys.argv[1])
 
-    coupling_file = "SOC_linregress_by_R.h5"
+    E_F =  5.79371650
+
+    coupling_file = "SOC_linregress.h5"
 
     poly_coeffs_up = [
-        2.0127743055555554,
-        -0.2429976190476202,
-        -0.09279894841269883,
-        5.44317319047619,
+        -0.5371981017543859,
+        -0.24168142111111088 + E_F,
     ]
     poly_coeffs_dn = [
-        1.5496388888888881,
-        -0.19418601190476167,
-        0.051376289682539204,
-        5.424151619047619,
+        -0.46845213684210535,
+        -0.2524031988888888 + E_F,
     ]
 
     fsys = build_supercell_with_hydrogen(
@@ -388,17 +389,12 @@ if __name__ == "__main__":
     rho = kwant.kpm.SpectralDensity(fsys)
 
     emin, emax = rho.bounds
-    Emax_req = 5.53348380 + 1.0
+    Emax_req = E_F + 1.0
     print(f"Minimum bound energy: {emin}")
     print(f"Minimum bound energy: {emax}")
-    energies = np.linspace(emin + 0.01, Emax_req, 40)
+    energies = np.linspace(emin + 0.01, Emax_req, 800)
     dos = rho(energies)
 
     filename_np = sys.argv[2]
-    np.savetxt(
-        filename_np,
-        np.column_stack([energies, dos]),
-        delimiter=",",
-        header="Energies, DOS",
-        comments="",
-    )
+    df = pd.DataFrame({'Energies': energies, 'DOS': dos})
+    df.to_csv(filename_np, index=False)
