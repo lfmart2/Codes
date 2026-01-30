@@ -331,6 +331,7 @@ def compute_hydrogen_pdos_kpm(
     norb = fsys.sites[0].family.norbs
     coords = [xy for xy, _ in sorted(mol_sites.items(), key=lambda kv: kv[1])]
     coords_set = set(coords)
+    Ns = len(coords)
 
     site_to_id = {site: i for i, site in enumerate(fsys.sites)}
     dof_H: list[int] = []
@@ -357,12 +358,18 @@ def compute_hydrogen_pdos_kpm(
         operator=op,
         num_moments=num_moments,
         num_vectors=num_vectors,
-        mean=True,
+        mean=False,
     )
     if energy_grid is None:
-        energies, dens = spectrum()
+        result = spectrum()
     else:
-        energies, dens = spectrum(np.asarray(energy_grid))
+        result = spectrum(np.asarray(energy_grid))
+    if len(result) == 2:
+        energies, dens = result
+    elif len(result) == 3:
+        energies, dens, _errors = result
+    else:
+        raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
     dens = np.asarray(dens)
 
     # Robust shape check (do not reshape silently)
