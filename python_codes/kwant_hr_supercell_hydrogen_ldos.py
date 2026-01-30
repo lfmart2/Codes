@@ -20,16 +20,7 @@ class HRData:
 
 
 def load_hr(path: str | Path) -> HRData:
-    """Load Wannier90 real-space Hamiltonian (wannier90_hr.dat).
-
-    Returns
-    -------
-    HRData
-        Parsed Wannier90 real-space Hamiltonian data. The arrays are:
-        - R: integer lattice vectors with shape (3, nrpts)
-        - weight: integer weights with shape (nrpts,)
-        - H_R: complex hopping blocks with shape (nw, nw, nrpts)
-    """
+    """Load Wannier90 real-space Hamiltonian (wannier90_hr.dat)."""
     path = Path(path)
     with path.open("r", encoding="utf-8") as handle:
         handle.readline()  # header
@@ -134,13 +125,10 @@ def coupling_hydrogen_slab(
     file_path: str | Path,
 ) -> np.ndarray:
     """Compute hydrogen coupling block for a given lattice vector."""
-    hydrogen_orbitals = 2 * num_molecules
     final_block = np.zeros(
-        (num_slab + hydrogen_orbitals, num_slab + hydrogen_orbitals), dtype=complex
-    final_block = np.zeros(
-        (num_slab + num_molecules, num_slab + num_molecules), dtype=complex
+        (num_slab + 2 * num_molecules, num_slab + 2 * num_molecules), dtype=complex
     )
-    rows_up = np.arange(0, mol_distance.size, 2, dtype=int)
+    rows_up = np.arange(0, 2 * num_molecules, 2, dtype=int)
     rows_dn = rows_up + 1
     dist_up = mol_distance[0::2]
     dist_dn = mol_distance[1::2]
@@ -164,34 +152,12 @@ def coupling_hydrogen_slab(
             else:
                 distances = dist_dn
                 rows = rows_dn
-            values = (
-                distances[:, None] * data_re[:, 1][None, :] + data_re[:, 0][None, :]
-            ) + 1j * (
-                distances[:, None] * data_im[:, 1][None, :] + data_im[:, 0][None, :]
-            )
-            cols = interaction_indices + hydrogen_orbitals
-            final_block[np.ix_(rows, cols)] += values
             values = np.polyval(coeffs_re, distances) + 1j * np.polyval(
                 coeffs_im, distances
             )
-            cols = interaction_indices + num_molecules
+            cols = interaction_indices + 2 * num_molecules
             final_block[np.ix_(rows, cols)] += values.T
     return final_block
-
-
-def iter_hoppings(
-    hr: HRData, tol_block: float | None = 1e-12
-) -> Iterable[tuple[tuple[int, int, int], np.ndarray]]:
-    """Yield non-onsite hopping blocks as (R, block)."""
-    for idx in range(hr.nrpts):
-        R_vec = tuple(int(v) for v in hr.R[:, idx])
-        if R_vec == (0, 0, 0):
-            continue
-
-        block = hr.H_R[:, :, idx] / hr.weight[idx]
-        if tol_block is not None and np.max(np.abs(block)) < tol_block:
-            continue
-        yield R_vec, block
 
 
 def iter_hoppings_with_hydrogen(
@@ -202,18 +168,16 @@ def iter_hoppings_with_hydrogen(
     tol_block: float | None = 1e-12,
 ) -> Iterable[tuple[tuple[int, int, int], np.ndarray]]:
     """Yield non-onsite hopping blocks with hydrogen coupling added."""
-    hydrogen_orbitals = 2 * num_molecules
     block = np.zeros(
-        (hr.num_wann + hydrogen_orbitals, hr.num_wann + hydrogen_orbitals),
+        (hr.num_wann + 2 * num_molecules, hr.num_wann + 2 * num_molecules),
         dtype=complex,
     )
-    block = np.zeros((hr.num_wann + num_molecules, hr.num_wann + num_molecules), dtype=complex)
     for idx in range(hr.nrpts):
         R_vec = tuple(int(v) for v in hr.R[:, idx])
         if R_vec == (0, 0, 0):
             continue
         block[:, :] = 0.0
-        block[hydrogen_orbitals:, hydrogen_orbitals:] = (
+        block[2 * num_molecules :, 2 * num_molecules :] = (
             hr.H_R[:, :, idx] / hr.weight[idx]
         )
         if tol_block is not None and np.max(np.abs(block)) < tol_block:
@@ -228,52 +192,6 @@ def iter_hoppings_with_hydrogen(
         yield R_vec, block + hydrogen_block
 
 
-def build_supercell_from_hr(
-    hr: HRData,
-    Lx: int,
-    Ly: int,
-    disorder_strength: float = 0.0,
-    tol_block: float | None = 1e-12,
-    seed: int | None = None,
-) -> kwant.system.FiniteSystem:
-    """Build a 2D supercell from Wannier90 HR data with PBC in x/y."""
-    norb = hr.num_wann
-    lat = kwant.lattice.square(norbs=norb)
-    syst = kwant.Builder()
-
-    onsite_block = np.zeros((norb, norb), dtype=complex)
-    for idx in range(hr.nrpts):
-        if np.all(hr.R[:, idx] == 0):
-            onsite_block = hr.H_R[:, :, idx].copy()
-            break
-
-    rng = np.random.default_rng(seed)
-
-    for x in range(Lx):
-        for y in range(Ly):
-            onsite = onsite_block.copy()
-            if disorder_strength:
-                shift = disorder_strength * (rng.random(norb) - 0.5)
-                onsite += np.diag(shift)
-            syst[lat(x, y)] = onsite
-
-    for (Rx, Ry, Rz), hop_block in iter_hoppings(hr, tol_block=tol_block):
-        if Rz != 0:
-            continue
-        for x in range(Lx):
-            for y in range(Ly):
-                x2 = (x + Rx) % Lx
-                y2 = (y + Ry) % Ly
-                s1 = lat(x, y)
-                s2 = lat(x2, y2)
-                if (s1, s2) in syst:
-                    syst[s1, s2] = syst[s1, s2] + hop_block
-                else:
-                    syst[s1, s2] = hop_block
-
-    return syst.finalized()
-
-
 def build_supercell_with_hydrogen(
     hr: HRData,
     Lx: int,
@@ -283,20 +201,20 @@ def build_supercell_with_hydrogen(
     poly_coeffs_dn: list[float],
     tol_block: float | None = 1e-12,
     seed: int | None = None,
-) -> kwant.system.FiniteSystem:
-    """Build a 2D supercell including hydrogen coupling data."""
+) -> tuple[kwant.system.FiniteSystem, kwant.lattice.Monatomic, dict[tuple[int, int], int]]:
+    """Build a 2D supercell including hydrogen coupling data (SOC)."""
     num_molecules = Lx * Ly // 2
-    norb = hr.num_wann + num_molecules
+    norb = hr.num_wann + 2 * num_molecules
     lat = kwant.lattice.square(norbs=norb)
     syst = kwant.Builder()
 
     rng = np.random.default_rng(seed)
-    mol_distance = rng.uniform(-0.6, 0.6, size=hydrogen_orbitals)
+    mol_distance = rng.uniform(-0.6, 0.6, size=2 * num_molecules)
 
     onsite_block = np.zeros((norb, norb), dtype=complex)
     for idx in range(hr.nrpts):
         if np.all(hr.R[:, idx] == 0):
-            onsite_block[hydrogen_orbitals:, hydrogen_orbitals:] = hr.H_R[
+            onsite_block[2 * num_molecules :, 2 * num_molecules :] = hr.H_R[
                 :, :, idx
             ].copy()
             break
@@ -305,16 +223,22 @@ def build_supercell_with_hydrogen(
     mol_idx = 0
     for x in range(0, Lx, 2):
         for y in range(0, Ly, 2):
+            if mol_idx >= num_molecules:
+                continue
             mol_sites[(x, y)] = mol_idx
-            mol_idx += 2
+            mol_idx += 1
 
     for x in range(Lx):
         for y in range(Ly):
             onsite = onsite_block.copy()
             mol_idx = mol_sites.get((x, y))
             if mol_idx is not None:
-                onsite[0, 0] = np.polyval(poly_coeffs_up, mol_distance[mol_idx])
-                onsite[1, 1] = np.polyval(poly_coeffs_dn, mol_distance[mol_idx + 1])
+                onsite[2 * mol_idx, 2 * mol_idx] = np.polyval(
+                    poly_coeffs_up, mol_distance[2 * mol_idx]
+                )
+                onsite[2 * mol_idx + 1, 2 * mol_idx + 1] = np.polyval(
+                    poly_coeffs_dn, mol_distance[2 * mol_idx + 1]
+                )
             syst[lat(x, y)] = onsite
 
     for (Rx, Ry, Rz), hop_block in iter_hoppings_with_hydrogen(
@@ -334,7 +258,150 @@ def build_supercell_with_hydrogen(
                 s2 = lat(x2, y2)
                 syst[s1, s2] = hop_block
 
-    return syst.finalized()
+    return syst.finalized(), lat, mol_sites
+
+
+def hydrogen_orbital_map(
+    lat: kwant.lattice.Monatomic, mol_sites: dict[tuple[int, int], int]
+) -> dict[kwant.builder.Site, tuple[int, int]]:
+    """Return hydrogen up/down orbital indices for each molecule site."""
+    orbital_map: dict[kwant.builder.Site, tuple[int, int]] = {}
+    for (x, y), mol_idx in mol_sites.items():
+        orbital_map[lat(x, y)] = (2 * mol_idx, 2 * mol_idx + 1)
+    return orbital_map
+
+
+def compute_hydrogen_ldos(
+    fsys: kwant.system.FiniteSystem,
+    hydrogen_orbitals: dict[kwant.builder.Site, tuple[int, int]],
+    energy_grid: np.ndarray,
+    num_moments: int = 2000,
+    rng_seed: int | None = 0,
+) -> dict[kwant.builder.Site, dict[str, np.ndarray]]:
+    """Compute LDOS for hydrogen up/down orbitals at each molecule site."""
+    rng = np.random.default_rng(rng_seed)
+    sites = list(hydrogen_orbitals.keys())
+    density_operator = kwant.operator.Density(fsys, where=sites, sum=False)
+    ldos = kwant.kpm.LocalDensityOfStates(
+        fsys,
+        num_moments=num_moments,
+        rng=rng,
+        operator=density_operator,
+    )
+    ldos_values = np.atleast_2d(ldos(energy_grid))
+    norb = fsys.sites[0].family.norbs
+    results: dict[kwant.builder.Site, dict[str, np.ndarray]] = {}
+
+    if ldos_values.shape[1] == len(sites):
+        for site_idx, site in enumerate(sites):
+            results[site] = {
+                "up": ldos_values[:, site_idx],
+                "down": ldos_values[:, site_idx],
+            }
+        return results
+
+    if ldos_values.shape[1] != len(sites) * norb:
+        raise ValueError(
+            "Unexpected LDOS output shape; expected per-site or per-orbital data."
+        )
+
+    for site_idx, site in enumerate(sites):
+        start = site_idx * norb
+        up_idx, dn_idx = hydrogen_orbitals[site]
+        results[site] = {
+            "up": ldos_values[:, start + up_idx],
+            "down": ldos_values[:, start + dn_idx],
+        }
+
+    return results
+
+
+def save_hydrogen_ldos_csv(
+    ldos_by_site: dict[kwant.builder.Site, dict[str, np.ndarray]],
+    energy_grid: np.ndarray,
+    output_path: str | Path,
+) -> None:
+    """Save hydrogen LDOS (up/down) for each site to a CSV file."""
+    import pandas as pd
+
+    data: dict[str, np.ndarray] = {"Energies": np.asarray(energy_grid)}
+    for site, spin_ldos in ldos_by_site.items():
+        x, y = site.tag
+        data[f"H_{x}_{y}_up"] = spin_ldos["up"]
+        data[f"H_{x}_{y}_down"] = spin_ldos["down"]
+    df = pd.DataFrame(data)
+    df.to_csv(output_path, index=False)
+
+
+def compute_hydrogen_pdos_kpm(
+    fsys: kwant.system.FiniteSystem,
+    mol_sites: dict[tuple[int, int], int],
+    *,
+    orbital_up: int = 0,
+    orbital_down: int = 1,
+    energy_grid: np.ndarray | None = None,
+    num_moments: int = 1500,
+    num_vectors: int = 30,
+    rng_seed: int | None = 0,
+) -> tuple[np.ndarray, list[tuple[int, int]], np.ndarray, np.ndarray]:
+    """Compute hydrogen PDOS for two orbitals using KPM + custom operator.
+
+    Returns
+    -------
+    energies : (NE,)
+    coords : list of (x, y) in mol_sites order
+    pdos_up : (NE, Ns)
+    pdos_down : (NE, Ns)
+    """
+    norb = fsys.sites[0].family.norbs
+    coords = [xy for xy, _ in sorted(mol_sites.items(), key=lambda kv: kv[1])]
+    coords_set = set(coords)
+
+    site_to_id = {site: i for i, site in enumerate(fsys.sites)}
+    dof_up: list[int] = []
+    dof_down: list[int] = []
+    for site in fsys.sites:
+        xy = tuple(site.tag)
+        if xy in coords_set:
+            sid = site_to_id[site]
+            dof_up.append(sid * norb + orbital_up)
+            dof_down.append(sid * norb + orbital_down)
+
+    dof_up = np.asarray(dof_up, dtype=int)
+    dof_down = np.asarray(dof_down, dtype=int)
+
+    if len(dof_up) != len(coords):
+        missing = [xy for xy in coords if xy not in {tuple(s.tag) for s in fsys.sites}]
+        raise ValueError(
+            f"Requested {len(coords)} sites, matched {len(dof_up)}. Missing? {missing[:10]}"
+        )
+
+    def op(bra: np.ndarray, ket: np.ndarray, **_params: object) -> np.ndarray:
+        v_up = np.conjugate(bra[dof_up]) * ket[dof_up]
+        v_down = np.conjugate(bra[dof_down]) * ket[dof_down]
+        return np.concatenate([v_up, v_down])
+
+    rng = np.random.default_rng(rng_seed)
+    spectrum = kwant.kpm.SpectralDensity(
+        fsys,
+        operator=op,
+        num_moments=num_moments,
+        num_vectors=num_vectors,
+        rng=rng,
+        mean=True,
+    )
+    if energy_grid is None:
+        energies, dens = spectrum()
+    else:
+        energies, dens = spectrum(np.asarray(energy_grid))
+    dens = np.asarray(dens)
+
+    num_sites = len(coords)
+    dens_2 = dens.reshape(len(energies), 2, num_sites)
+    pdos_up = dens_2[:, 0, :]
+    pdos_down = dens_2[:, 1, :]
+
+    return energies, coords, pdos_up, pdos_down
 
 
 def report_system_size(fsys: kwant.system.FiniteSystem) -> None:
@@ -353,51 +420,27 @@ def report_system_size(fsys: kwant.system.FiniteSystem) -> None:
     print("---------------------------------")
 
 
-def estimate_dos(
-    fsys: kwant.system.FiniteSystem,
-    energy_grid: np.ndarray,
-    num_moments: int = 2000,
-    rng_seed: int | None = 0,
-) -> np.ndarray:
-    """Compute DOS via KPM."""
-    rng = np.random.default_rng(rng_seed)
-    spectrum = kwant.kpm.SpectralDensity(
-        fsys,
-        num_moments=num_moments,
-        rng=rng,
-    )
-    return spectrum(energy_grid)
-
-
 if __name__ == "__main__":
     hr = load_hr("wannier90_hr_r0.dat")
-    coupling_file = "SOC_linregress_by_R.h5"
 
-    poly_coeffs_up = [
-        2.0127743055555554,
-        -0.2429976190476202,
-        -0.09279894841269883,
-        5.44317319047619,
-    ]
-    poly_coeffs_dn = [
-        1.5496388888888881,
-        -0.19418601190476167,
-        0.051376289682539204,
-        5.424151619047619,
-    ]
-
-    fsys = build_supercell_with_hydrogen(
+    fsys, lat, mol_sites = build_supercell_with_hydrogen(
         hr,
         Lx=10,
         Ly=10,
-        coupling_file=coupling_file,
-        poly_coeffs_up=poly_coeffs_up,
-        poly_coeffs_dn=poly_coeffs_dn,
-        tol_block=1e-3,
+        coupling_file="hydrogen_interaction_data.h5",
+        poly_coeffs_up=[0.0, 0.0, 0.0],
+        poly_coeffs_dn=[0.0, 0.0, 0.0],
         seed=1234,
     )
     report_system_size(fsys)
 
     energies = np.linspace(-2.0, 2.0, 400)
-    dos = estimate_dos(fsys, energies)
-    print("DOS sample:", dos[:5])
+    hydrogen_orbitals = hydrogen_orbital_map(lat, mol_sites)
+    ldos_by_site = compute_hydrogen_ldos(
+        fsys,
+        hydrogen_orbitals=hydrogen_orbitals,
+        energy_grid=energies,
+    )
+    sample_site = next(iter(ldos_by_site))
+    print("Sample hydrogen LDOS (up):", ldos_by_site[sample_site]["up"][:5])
+    print("Sample hydrogen LDOS (down):", ldos_by_site[sample_site]["down"][:5])
