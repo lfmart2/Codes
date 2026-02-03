@@ -364,12 +364,20 @@ def compute_hydrogen_pdos_kpm(
         result = spectrum()
     else:
         result = spectrum(np.asarray(energy_grid))
-    if len(result) == 2:
-        energies, dens = result
-    elif len(result) == 3:
-        energies, dens, _errors = result
+    if isinstance(result, tuple):
+        if len(result) == 2:
+            energies, dens = result
+        elif len(result) == 3:
+            energies, dens, _errors = result
+        else:
+            raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
     else:
-        raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
+        if energy_grid is None:
+            raise RuntimeError(
+                f"Unexpected spectrum return values (no energy grid): {type(result)}"
+            )
+        energies = np.asarray(energy_grid)
+        dens = result
     dens = np.asarray(dens)
 
     # Robust shape check (do not reshape silently)
@@ -421,7 +429,7 @@ if __name__ == "__main__":
         num_vectors=30,
     )
 
-    df = pd.DataFrame({"Energies": energies})
+    df = pd.DataFrame({"Energies": energies_up})
     for idx, (x, y) in enumerate(coords):
         df[f"H_{x}_{y}_up"] = pdos_up[:, idx]
     df.to_csv(filename_up, index=False)
@@ -450,7 +458,7 @@ if __name__ == "__main__":
         num_moments=1500,
         num_vectors=30,
     )
-    df = pd.DataFrame({"Energies": energies})
+    df = pd.DataFrame({"Energies": energies_dn})
     for idx, (x, y) in enumerate(coords):
         df[f"H_{x}_{y}_dn"] = pdos_dn[:, idx]
     df.to_csv(filename_dn, index=False)
