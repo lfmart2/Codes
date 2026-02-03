@@ -406,11 +406,14 @@ if __name__ == "__main__":
     )
 
     filename_up = sys.argv[3]
-    emin_up = -1.28
-    emax = E_F + 1
-    energies_up = np.linspace(emin_up, emax, 800)
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin_up, emax_up = rho.bounds
+    Emax_req = E_F + 1.0
+    print(f"Minimum bound energy for spin-up: {emin_up}")
+    print(f"Maximum bound energy for spin-up: {emax_up}")
+    energies_up = np.linspace(emin_up + 0.01, Emax_req, 800)
 
-    energies, coords, pdos_up = compute_hydrogen_pdos_kpm(
+    energies_up, coords, pdos_up = compute_hydrogen_pdos_kpm(
         fsys,
         mol_sites,
         energy_grid=energies_up,
@@ -434,11 +437,13 @@ if __name__ == "__main__":
     )
 
     filename_dn = sys.argv[4]
-    emin_dn = -1.16
-    energies_dn = np.linspace(emin_dn, emax, 800)
-    dos_dn = rho_dn(energies_dn)
-    
-    energies, coords, pdos_dn = compute_hydrogen_pdos_kpm(
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin_dn, emax_dn = rho.bounds
+    print(f"Minimum bound energy for spin-dn: {emin_dn}")
+    print(f"Maximum bound energy for spin-dn: {emax_dn}")
+    energies_dn = np.linspace(emin_dn + 0.01, Emax_req, 800)
+
+    energies_dn, coords, pdos_dn = compute_hydrogen_pdos_kpm(
         fsys,
         mol_sites,
         energy_grid=energies_dn,
