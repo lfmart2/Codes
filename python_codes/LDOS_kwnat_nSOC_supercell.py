@@ -364,13 +364,32 @@ def compute_hydrogen_pdos_kpm(
         result = spectrum()
     else:
         result = spectrum(np.asarray(energy_grid))
-    if len(result) == 2:
-        energies, dens = result
-    elif len(result) == 3:
-        energies, dens, _errors = result
+    if isinstance(result, tuple):
+        if len(result) == 2:
+            energies, dens = result
+        elif len(result) == 3:
+            energies, dens, _errors = result
+        else:
+            raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
     else:
-        raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
+        if energy_grid is None:
+            raise RuntimeError(
+                f"Unexpected spectrum return values (no energy grid): {type(result)}"
+            )
+        energies = np.asarray(energy_grid)
+        dens = result
     dens = np.asarray(dens)
+
+    if dens.ndim == 3:
+        if dens.shape[1] == Ns:
+            dens = dens.mean(axis=2)
+        elif dens.shape[2] == Ns:
+            dens = dens.mean(axis=1)
+        else:
+            raise RuntimeError(
+                f"Unexpected dens shape {dens.shape}; expected (NE, {Ns})"
+                " or (NE, Ns, num_vectors) variants."
+            )
 
     # Robust shape check (do not reshape silently)
     if dens.ndim != 2 or dens.shape[1] != Ns:
@@ -378,9 +397,61 @@ def compute_hydrogen_pdos_kpm(
 
     return energies, coords, dens
 
+def quick_test_hydrogen_pdos(
+    hr: np.ndarray,
+    *,
+    Lx: int = 10,
+    Ly: int = 10,
+    num_moments: int = 100,
+    num_vectors: int = 4,
+    num_energies: int = 50,
+) -> tuple[np.ndarray, list[tuple[int, int]], np.ndarray]:
+    """Build a smaller system and run a fast PDOS evaluation for sanity checks."""
+    E_F = 5.58170362
+    coupling_file_up = "nSOC_linregress_up.h5"
+    poly_coeffs_up = [
+        -0.6888020535087722,
+        -0.11799012444444447 + E_F,
+    ]
+
+    fsys, mol_sites = build_supercell_with_hydrogen(
+        hr,
+        Lx=Lx,
+        Ly=Ly,
+        coupling_file=coupling_file_up,
+        poly_coeffs=poly_coeffs_up,
+    )
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin, _emax = rho.bounds
+    energies = np.linspace(emin + 0.01, E_F + 0.5, num_energies)
+    return compute_hydrogen_pdos_kpm(
+        fsys,
+        mol_sites,
+        energy_grid=energies,
+        num_moments=num_moments,
+        num_vectors=num_vectors,
+    )
+
 if __name__ == "__main__":
+    if "--quick-test" in sys.argv:
+        if len(sys.argv) < 3:
+            raise SystemExit(
+                "Usage: python DOS_kwant.py --quick-test <wannier90_hr_up.dat>"
+            )
+        hr = load_hr(sys.argv[2])
+        energies, coords, pdos = quick_test_hydrogen_pdos(hr)
+        print(
+            "Quick test complete:",
+            f"energies={energies.shape},",
+            f"coords={len(coords)},",
+            f"pdos={pdos.shape}",
+        )
+        raise SystemExit(0)
     if len(sys.argv) < 5:
-        raise SystemExit("Usage: python DOS_kwant.py <wannier90_hr_up.dat> <output_up.csv> <wannier90_hr_dn.dat> <output_dn.csv>")
+        raise SystemExit(
+            "Usage: python DOS_kwant.py <wannier90_hr_up.dat> <output_up.csv> "
+            "<wannier90_hr_dn.dat> <output_dn.csv>"
+        )
     hr = load_hr(sys.argv[1])
 
     E_F = 5.58170362
@@ -421,7 +492,7 @@ if __name__ == "__main__":
         num_vectors=30,
     )
 
-    df = pd.DataFrame({"Energies": energies})
+    df = pd.DataFrame({"Energies": energies_up})
     for idx, (x, y) in enumerate(coords):
         df[f"H_{x}_{y}_up"] = pdos_up[:, idx]
     df.to_csv(filename_up, index=False)
@@ -450,7 +521,7 @@ if __name__ == "__main__":
         num_moments=1500,
         num_vectors=30,
     )
-    df = pd.DataFrame({"Energies": energies})
+    df = pd.DataFrame({"Energies": energies_dn})
     for idx, (x, y) in enumerate(coords):
         df[f"H_{x}_{y}_dn"] = pdos_dn[:, idx]
     df.to_csv(filename_dn, index=False)

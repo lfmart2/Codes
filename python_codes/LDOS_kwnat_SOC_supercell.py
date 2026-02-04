@@ -422,20 +422,93 @@ def compute_hydrogen_pdos_kpm(
         mean=True,
     )
     if energy_grid is None:
-        energies, dens = spectrum()
+        result = spectrum()
     else:
-        energies, dens = spectrum(np.asarray(energy_grid))
+        result = spectrum(np.asarray(energy_grid))
+    if isinstance(result, tuple):
+        if len(result) == 2:
+            energies, dens = result
+        elif len(result) == 3:
+            energies, dens, _errors = result
+        else:
+            raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
+    else:
+        if energy_grid is None:
+            raise RuntimeError(
+                f"Unexpected spectrum return values (no energy grid): {type(result)}"
+            )
+        energies = np.asarray(energy_grid)
+        dens = result
     dens = np.asarray(dens)
 
     num_sites = len(coords)
+    if dens.ndim != 2 or dens.shape[1] != 2 * num_sites:
+        raise RuntimeError(
+            f"Unexpected dens shape {dens.shape}; expected (NE, {2 * num_sites})."
+        )
     dens_2 = dens.reshape(len(energies), 2, num_sites)
     pdos_up = dens_2[:, 0, :]
     pdos_down = dens_2[:, 1, :]
 
     return energies, coords, pdos_up, pdos_down
 
+def quick_test_hydrogen_pdos(
+    hr: np.ndarray,
+    *,
+    Lx: int = 10,
+    Ly: int = 10,
+    num_moments: int = 100,
+    num_vectors: int = 4,
+    num_energies: int = 50,
+) -> tuple[np.ndarray, list[tuple[int, int]], np.ndarray, np.ndarray]:
+    """Build a smaller system and run a fast PDOS evaluation for sanity checks."""
+    E_F = 5.79371650
+    coupling_file = "SOC_linregress.h5"
+    poly_coeffs_up = [
+        -0.5371981017543859,
+        -0.24168142111111088 + E_F,
+    ]
+    poly_coeffs_dn = [
+        -0.46845213684210535,
+        -0.2524031988888888 + E_F,
+    ]
+
+    fsys, mol_sites = build_supercell_with_hydrogen(
+        hr,
+        Lx=Lx,
+        Ly=Ly,
+        coupling_file=coupling_file,
+        poly_coeffs_up=poly_coeffs_up,
+        poly_coeffs_dn=poly_coeffs_dn,
+    )
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin, _emax = rho.bounds
+    energies = np.linspace(emin + 0.01, E_F + 0.5, num_energies)
+    return compute_hydrogen_pdos_kpm(
+        fsys,
+        mol_sites,
+        energy_grid=energies,
+        num_moments=num_moments,
+        num_vectors=num_vectors,
+    )
+
 if __name__ == "__main__":
     # Expect Wannier90 Hamiltonian path and output filename from CLI.
+    if "--quick-test" in sys.argv:
+        if len(sys.argv) < 3:
+            raise SystemExit(
+                "Usage: python DOS_kwant.py --quick-test <wannier90_hr.dat>"
+            )
+        hr = load_hr(sys.argv[2])
+        energies, coords, pdos_up, pdos_down = quick_test_hydrogen_pdos(hr)
+        print(
+            "Quick test complete:",
+            f"energies={energies.shape},",
+            f"coords={len(coords)},",
+            f"pdos_up={pdos_up.shape},",
+            f"pdos_down={pdos_down.shape}",
+        )
+        raise SystemExit(0)
     if len(sys.argv) < 3:
         raise SystemExit("Usage: python DOS_kwant.py <wannier90_hr.dat> <output.csv>")
     hr = load_hr(sys.argv[1])
