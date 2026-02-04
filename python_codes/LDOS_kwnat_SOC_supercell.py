@@ -422,12 +422,30 @@ def compute_hydrogen_pdos_kpm(
         mean=True,
     )
     if energy_grid is None:
-        energies, dens = spectrum()
+        result = spectrum()
     else:
-        energies, dens = spectrum(np.asarray(energy_grid))
+        result = spectrum(np.asarray(energy_grid))
+    if isinstance(result, tuple):
+        if len(result) == 2:
+            energies, dens = result
+        elif len(result) == 3:
+            energies, dens, _errors = result
+        else:
+            raise RuntimeError(f"Unexpected spectrum return values: {len(result)}")
+    else:
+        if energy_grid is None:
+            raise RuntimeError(
+                f"Unexpected spectrum return values (no energy grid): {type(result)}"
+            )
+        energies = np.asarray(energy_grid)
+        dens = result
     dens = np.asarray(dens)
 
     num_sites = len(coords)
+    if dens.ndim != 2 or dens.shape[1] != 2 * num_sites:
+        raise RuntimeError(
+            f"Unexpected dens shape {dens.shape}; expected (NE, {2 * num_sites})."
+        )
     dens_2 = dens.reshape(len(energies), 2, num_sites)
     pdos_up = dens_2[:, 0, :]
     pdos_down = dens_2[:, 1, :]
