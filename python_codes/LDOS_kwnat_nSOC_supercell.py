@@ -397,9 +397,61 @@ def compute_hydrogen_pdos_kpm(
 
     return energies, coords, dens
 
+def quick_test_hydrogen_pdos(
+    hr: np.ndarray,
+    *,
+    Lx: int = 10,
+    Ly: int = 10,
+    num_moments: int = 100,
+    num_vectors: int = 4,
+    num_energies: int = 50,
+) -> tuple[np.ndarray, list[tuple[int, int]], np.ndarray]:
+    """Build a smaller system and run a fast PDOS evaluation for sanity checks."""
+    E_F = 5.58170362
+    coupling_file_up = "nSOC_linregress_up.h5"
+    poly_coeffs_up = [
+        -0.6888020535087722,
+        -0.11799012444444447 + E_F,
+    ]
+
+    fsys, mol_sites = build_supercell_with_hydrogen(
+        hr,
+        Lx=Lx,
+        Ly=Ly,
+        coupling_file=coupling_file_up,
+        poly_coeffs=poly_coeffs_up,
+    )
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin, _emax = rho.bounds
+    energies = np.linspace(emin + 0.01, E_F + 0.5, num_energies)
+    return compute_hydrogen_pdos_kpm(
+        fsys,
+        mol_sites,
+        energy_grid=energies,
+        num_moments=num_moments,
+        num_vectors=num_vectors,
+    )
+
 if __name__ == "__main__":
+    if "--quick-test" in sys.argv:
+        if len(sys.argv) < 3:
+            raise SystemExit(
+                "Usage: python DOS_kwant.py --quick-test <wannier90_hr_up.dat>"
+            )
+        hr = load_hr(sys.argv[2])
+        energies, coords, pdos = quick_test_hydrogen_pdos(hr)
+        print(
+            "Quick test complete:",
+            f"energies={energies.shape},",
+            f"coords={len(coords)},",
+            f"pdos={pdos.shape}",
+        )
+        raise SystemExit(0)
     if len(sys.argv) < 5:
-        raise SystemExit("Usage: python DOS_kwant.py <wannier90_hr_up.dat> <output_up.csv> <wannier90_hr_dn.dat> <output_dn.csv>")
+        raise SystemExit(
+            "Usage: python DOS_kwant.py <wannier90_hr_up.dat> <output_up.csv> "
+            "<wannier90_hr_dn.dat> <output_dn.csv>"
+        )
     hr = load_hr(sys.argv[1])
 
     E_F = 5.58170362
