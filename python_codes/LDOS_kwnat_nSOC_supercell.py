@@ -380,6 +380,17 @@ def compute_hydrogen_pdos_kpm(
         dens = result
     dens = np.asarray(dens)
 
+    if dens.ndim == 3:
+        if dens.shape[1] == Ns:
+            dens = dens.mean(axis=2)
+        elif dens.shape[2] == Ns:
+            dens = dens.mean(axis=1)
+        else:
+            raise RuntimeError(
+                f"Unexpected dens shape {dens.shape}; expected (NE, {Ns})"
+                " or (NE, Ns, num_vectors) variants."
+            )
+
     # Robust shape check (do not reshape silently)
     if dens.ndim != 2 or dens.shape[1] != Ns:
         raise RuntimeError(f"Unexpected dens shape {dens.shape}; expected (NE, {Ns}).")
