@@ -1,9 +1,21 @@
-import kwant
-import kwant.kpm
+from pathlib import Path
+
 import cupy as cp
 import cupyx.scipy.sparse as cusparse
+import h5py
+import kwant
+import kwant.kpm
 import numpy as np
+import pandas as pd
 from math import pi
+
+from LDOS_kwnat_SOC_supercell import (
+    HRData,
+    compute_hydrogen_pdos_kpm,
+    coupling_hydrogen_slab,
+    coupling_hydrogen_slab_mapping,
+    load_hr,
+)
 
 class GPUEnhancedKwantKPM:
     """
@@ -504,6 +516,98 @@ def _preload_coupling_data_gpu(coupling_file, gpu_device):
             coupling_data[R_vec] = block_data
     
     return coupling_data
+
+
+def _compute_hydrogen_coupling_gpu(
+    R_vec,
+    x,
+    y,
+    x2,
+    y2,
+    mol_sites,
+    mol_distance,
+    coupling_data,
+    num_slab,
+    hydrogen_orbitals,
+):
+    """Compute hydrogen coupling using preloaded GPU data."""
+    final_block = cp.zeros(
+        (num_slab + hydrogen_orbitals, num_slab + hydrogen_orbitals),
+        dtype=cp.complex128,
+    )
+    src_idx = mol_sites.get((x, y))
+    dst_idx = mol_sites.get((x2, y2))
+    if src_idx is None and dst_idx is None:
+        return cp.asnumpy(final_block)
+
+    rows_up = cp.asarray([0])
+    rows_dn = cp.asarray([1])
+    dist_up = cp.asarray([mol_distance[src_idx]]) if src_idx is not None else cp.asarray([])
+    dist_dn = (
+        cp.asarray([mol_distance[src_idx + 1]])
+        if src_idx is not None
+        else cp.asarray([])
+    )
+    dist_up_conj = (
+        cp.asarray([mol_distance[dst_idx]]) if dst_idx is not None else cp.asarray([])
+    )
+    dist_dn_conj = (
+        cp.asarray([mol_distance[dst_idx + 1]])
+        if dst_idx is not None
+        else cp.asarray([])
+    )
+
+    block_data = coupling_data.get(R_vec)
+    if not block_data:
+        return cp.asnumpy(final_block)
+
+    for label, data in block_data.items():
+        spin_index, target_label_spin, _indices = data["mapping"]
+        data_re = data["data_re"]
+        data_im = data["data_im"]
+        cols = data["indices"] + hydrogen_orbitals
+
+        if src_idx is not None:
+            if spin_index == 0:
+                distances = dist_up
+                rows = rows_up
+            else:
+                distances = dist_dn
+                rows = rows_dn
+            values = (
+                data_re[:, 3][None, :] * distances[:, None] ** 3
+                + data_re[:, 2][None, :] * distances[:, None] ** 2
+                + data_re[:, 1][None, :] * distances[:, None]
+                + data_re[:, 0][None, :]
+            ) + 1j * (
+                data_im[:, 3][None, :] * distances[:, None] ** 3
+                + data_im[:, 2][None, :] * distances[:, None] ** 2
+                + data_im[:, 1][None, :] * distances[:, None]
+                + data_im[:, 0][None, :]
+            )
+            final_block[cp.ix_(rows, cols)] += values
+
+        if dst_idx is not None:
+            if target_label_spin == 0:
+                distances_conj = dist_up_conj
+                rows_conj = rows_up
+            else:
+                distances_conj = dist_dn_conj
+                rows_conj = rows_dn
+            values_conj = (
+                data_re[:, 3][None, :] * distances_conj[:, None] ** 3
+                + data_re[:, 2][None, :] * distances_conj[:, None] ** 2
+                + data_re[:, 1][None, :] * distances_conj[:, None]
+                + data_re[:, 0][None, :]
+            ) + 1j * (
+                data_im[:, 3][None, :] * distances_conj[:, None] ** 3
+                + data_im[:, 2][None, :] * distances_conj[:, None] ** 2
+                + data_im[:, 1][None, :] * distances_conj[:, None]
+                + data_im[:, 0][None, :]
+            )
+            final_block[cp.ix_(cols, rows_conj)] += values_conj.T
+
+    return cp.asnumpy(final_block)
     
 if __name__ == "__main__":
     import sys
