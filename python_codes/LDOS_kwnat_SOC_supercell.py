@@ -239,11 +239,6 @@ def coupling_hydrogen_slab(
     return final_block
 
 
-def _rvec_is_positive(r_vec: tuple[int, int, int]) -> bool:
-    Rx, Ry, Rz = r_vec
-    return (Rz > 0) or (Rz == 0 and Ry > 0) or (Rz == 0 and Ry == 0 and Rx > 0)
-
-
 def iter_hoppings_with_hydrogen(
     hr: HRData,
     mol_distance: np.ndarray,
@@ -263,8 +258,6 @@ def iter_hoppings_with_hydrogen(
     for idx in range(hr.nrpts):
         R_vec = tuple(int(v) for v in hr.R[:, idx])
         if R_vec == (0, 0, 0):
-            continue
-        if not _rvec_is_positive(R_vec):
             continue
         if R_vec[2] != 0:
             continue
@@ -301,7 +294,7 @@ def build_supercell_with_hydrogen(
     coupling_file: str | Path,
     poly_coeffs_up: list[float],
     poly_coeffs_dn: list[float],
-) -> kwant.system.FiniteSystem:
+) -> tuple[kwant.system.FiniteSystem, dict[tuple[int, int], int]]:
     """Build a 2D supercell including hydrogen coupling data."""
     num_molecules = (Lx * Ly) // 2
     hydrogen_orbitals = 2
@@ -328,7 +321,7 @@ def build_supercell_with_hydrogen(
     mol_idx = 0
     for x in range(Lx):
         for y in range(Ly):
-            if (x + y) % 2 != 0:
+            if (x + y) % 2 == 0:
                 continue
             if mol_idx >= mol_distance.size:
                 continue
@@ -362,6 +355,9 @@ def build_supercell_with_hydrogen(
                 y2 = (y + Ry) % Ly
                 s1 = lat(x, y)
                 s2 = lat(x2, y2)
+                if s1 == s2:
+                    syst[s1] = syst[s1] + hop_block
+                    continue
                 syst[s1, s2] = hop_block
 
     return syst.finalized(), mol_sites
@@ -537,7 +533,8 @@ if __name__ == "__main__":
         )
 
     filename_np = sys.argv[2]
-    emin = -1.06
+    rho = kwant.kpm.SpectralDensity(fsys)
+    emin = rho.bounds[0]
     emax = E_F + 1
     energies = np.linspace(emin, emax, 800)
 
