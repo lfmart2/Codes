@@ -456,11 +456,26 @@ def build_hydrogen_nbp_supercell_optimized(
             for y in range(Ly):
                 x2 = (x + R_vec[0]) % Lx
                 y2 = (y + R_vec[1]) % Ly
-                
-                # Check if either site has hydrogen
                 src_has_h = (x, y) in mol_sites
                 dst_has_h = (x2, y2) in mol_sites
-                
+                if x2 == x and y2 == y:
+                    syst[lat(x, y)] = syst[lat(x, y)] + hop_block
+                    if not src_has_h and not dst_has_h:
+                        continue
+                    if use_gpu and coupling_data:
+                        hydrogen_coupling = _compute_hydrogen_coupling_gpu(
+                            R_vec, x, y, x2, y2, mol_sites, mol_distance,
+                            coupling_data, hr.num_wann, hydrogen_orbitals
+                        )
+                    else:
+                        hydrogen_coupling = coupling_hydrogen_slab(
+                            R_vec, hr.num_wann, mol_distance, coupling_file,
+                            x, y, Lx, Ly, mol_sites, use_gpu=False
+                        )
+                    syst[lat(x, y)] = syst[lat(x, y)] + hydrogen_coupling
+                    continue
+
+                # Check if either site has hydrogen
                 if not src_has_h and not dst_has_h:
                     syst[lat(x, y), lat(x2, y2)] = hop_block
                     continue

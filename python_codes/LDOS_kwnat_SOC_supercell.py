@@ -355,6 +355,9 @@ def build_supercell_with_hydrogen(
                 y2 = (y + Ry) % Ly
                 s1 = lat(x, y)
                 s2 = lat(x2, y2)
+                if s1 == s2:
+                    syst[s1] = syst[s1] + hop_block
+                    continue
                 syst[s1, s2] = hop_block
 
     return syst.finalized(), mol_sites
