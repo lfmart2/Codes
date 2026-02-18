@@ -2,22 +2,22 @@
 clc; clear all;
 v=10; w=linspace(5,15,400);
 e0=linspace(0,0.1,5); 
-N=800; T1=0.1;
+N=1000; T1=0.1; alpha = 1; %sqrt(800);
 n0 = zeros([length(e0) length(w)]);
 n01 = zeros([length(e0) length(w)]);
-for i=2:1:length(e0)
+for i=1:length(e0)
     for jj=1:length(w)
         psi=SSH_chain(N,v,w(jj));
-        psi(1,2*N+1)=T1; psi(2*N+1,1)=T1;
-        psi(2,2*N+1)=T1/3; psi(2*N+1,2)=T1/3;
+        psi(1,2*N+1)=T1 * alpha / sqrt(N); psi(2*N+1,1)=T1* alpha / sqrt(N);
+        psi(2,2*N+1)=(T1/3) * alpha / sqrt(N); psi(2*N+1,2)=(T1/3)* alpha / sqrt(N);
         psi(2*N+1,2*N+1) = e0(i);
         [V,D]=eig(psi);
         Enner(jj,:)=diag(D);
         n0(i,jj) = sum(V(2*N+1, 1:N).^2, 'all');
-        psi=SSH_chain(N,v,w(jj));
-        [V,D]=eig(psi);
-        n01(i,jj) = ((T1*max( abs( V(1,:) ) )/e0(i) )^2)/(1+(T1*max( abs( V(1,:) ) )/e0(i) )^2);
-        n02(i,jj) = ((T1*max( abs( V(1,:) ) )/e0(i) )^2);
+        % psi=SSH_chain(N,v,w(jj));
+        % [V,D]=eig(psi);
+        % n01(i,jj) = ((T1*max( abs( V(1,:) ) )/e0(i) )^2)/(1+(T1*max( abs( V(1,:) ) )/e0(i) )^2);
+        % n02(i,jj) = ((T1*max( abs( V(1,:) ) )/e0(i) )^2);
     end
 end
 figure; hold on;   
@@ -26,11 +26,11 @@ plot(w./v,n0(2,:),'--','LineWidth',2);
 plot(w./v,n0(3,:),':','LineWidth',2);
 plot(w./v,n0(4,:),'-.','LineWidth',2);
 plot(w./v,n0(5,:),'LineWidth',2);
-plot(w./v,n01(1,:),'LineWidth',2);
-plot(w./v,n01(2,:),'--','LineWidth',2);
-plot(w./v,n01(3,:),':','LineWidth',2);
-plot(w./v,n01(4,:),'-.','LineWidth',2);
-plot(w./v,n01(5,:),'LineWidth',2);
+% plot(w./v,n01(1,:),'LineWidth',2);
+% plot(w./v,n01(2,:),'--','LineWidth',2);
+% plot(w./v,n01(3,:),':','LineWidth',2);
+% plot(w./v,n01(4,:),'-.','LineWidth',2);
+% plot(w./v,n01(5,:),'LineWidth',2);
 xline(1,'-.','HandleVisibility','off')
 xlim([w(1)/v w(end)/v])
 xlabel('$w/v$','interpreter','latex'); ylabel('$n_0(R,x_E)$','interpreter','latex')
@@ -43,29 +43,51 @@ set(gca, 'FontSize', fontSize, 'LineWidth', 1);
 legend('$0$','$0.025$','$0.05$','$0.075$','0.1','interpreter','latex');
 ylim([0 0.65])
 
+% Define data to save
+xdata = w./v;               % x-axis
+
+% Combine into one matrix
+M = [xdata' n0(1,:)' n0(2,:)' n0(3,:)' n0(4,:)' n0(5,:)'];
+
+% Define header
+headers = {'x', 'e0', 'e025' 'e05' 'e075' 'e1'};
+
+% Output file name (you can use the same prefix as the .mat)
+outname = 'edge_occupation_number_400_2.csv';
+
+% Write header
+fid = fopen(outname, 'w');
+fprintf(fid, '%s,%s,%s,%s,%s,%s\n', headers{:});
+fclose(fid);
+
+% Append data
+dlmwrite(outname, M, '-append');
+
+fprintf('✅ Plot data saved to %s\n', outname);
+
 %% Electron density in the bulk
 clear all; clc
 tic
-v=10; w=linspace(10.0,10.06,500); %10.375;
-T1=0.1;[0.05 0.1 0.15]; N=2*800; e0=0;%[0 4*10^-4 8*10^-4 12*10^-4];
-n0 = zeros(length(T1),length(w));
-for i=1:1:length(T1)
+v=10; w=linspace(9.8,10.4,500); %10.375;
+T1=0.1; N=400; e0=[0 4*10^-4 8*10^-4 12*10^-4];
+n0 = zeros(length(e0),length(w));
+alpha = sqrt(800)
+for i=1:1:length(e0)
     for jj=1:length(w)
         psi=SSH_chain(N,v,w(jj));
         % psi=SSH(N,v,w(jj),e0(i));
-        psi(2*N+1,2*N+1) = e0;
-        psi(N,2*N+1)=T1(i); psi(2*N+1,N)=T1(i); 
-        psi(N+1,2*N+1)=T1(i)/3; psi(2*N+1,N+1)=T1(i)/3;
-        psi(N-1,2*N+1)=T1(i)/3; psi(2*N+1,N-1)=T1(i)/3;
+        psi(2*N+1,2*N+1) = e0(i);
+        psi(N,2*N+1)=T1 * alpha / sqrt(N); psi(2*N+1,N)=T1 * alpha / sqrt(N); 
+        psi(N+1,2*N+1)=(T1/3) * alpha / sqrt(N); psi(2*N+1,N+1)=(T1/3) * alpha / sqrt(N);
+        psi(N-1,2*N+1)=(T1/3) * alpha / sqrt(N); psi(2*N+1,N-1)=(T1/3) * alpha / sqrt(N);
         [V,D]=eig(psi);
         Enner(jj,:)=diag(D);
-        % 
-        % [~, maxIndex] = max(abs(V(2*N+1,:)));
-        % V(:,maxIndex) = [];
-        % n0(i,jj) = sum(V(2*N+1, 1:N).^2, 'all');
-        n0(i,jj) = max(abs(V(1,:)));
+
+        [~, maxIndex] = max(abs(V(2*N+1,:)));
+        V(:,maxIndex) = [];
+        n0(i,jj) = sum(V(2*N+1, 1:N).^2, 'all');
          
-        % if abs(V(2*N+1,N)) < 0.65
+        % if abs(V(2*N+1,N)) < 0.7
         %     for ii=1:N 
         %         n0(i,jj)=n0(i,jj)+(V(length(psi),ii))^2;
         %     end
@@ -79,21 +101,42 @@ for i=1:1:length(T1)
 end
 figure; hold on;   
 plot(w./v,n0(1,:),'LineWidth',2);
-% plot(w./v,n0(2,:),'--','LineWidth',2);
-% plot(w./v,n0(3,:),':','LineWidth',2);
-% plot(w./v,n0(4,:),'-.','LineWidth',2);
+plot(w./v,n0(2,:),'--','LineWidth',2);
+plot(w./v,n0(3,:),':','LineWidth',2);
+plot(w./v,n0(4,:),'-.','LineWidth',2);
 xlabel('$w/v$','interpreter','latex'); ylabel('$n_0(R,x_B)$','interpreter','latex')
 l = legend('show','interpreter','latex','FontWeight','bold');
 % l.Title.String = '$\bf{\varepsilon_0}$';
 l.Title.String = '$\bf{T_{m,\alpha}}$';
-legend('$0.05$','$0.1$','$0.15$','interpreter','latex');
-% legend('$0$','$0.0004$','$0.0008$','$0.0012$','interpreter','latex');
+% legend('$0.05$','$0.1$','$0.15$','interpreter','latex');
+legend('$0$','$0.0004$','$0.0008$','$0.0012$','interpreter','latex');
 xlim([w(1)/v w(end)/v])
 fontSize = 15;
 box on;
 set(gca, 'FontSize', fontSize, 'LineWidth', 1);
 toc
 
+% Define data to save
+xdata = w./v;               % x-axis
+
+% Combine into one matrix
+M = [xdata' n0(1,:)' n0(2,:)' n0(3,:)' n0(4,:)'];
+
+% Define header
+headers = {'x', 'e0', 'e0004' 'e0008' 'e0012'};
+
+% Output file name (you can use the same prefix as the .mat)
+outname = 'bulk_occupation_number_400.csv';
+
+% Write header
+fid = fopen(outname, 'w');
+fprintf(fid, '%s,%s,%s,%s,%s,%s\n', headers{:});
+fclose(fid);
+
+% Append data
+dlmwrite(outname, M, '-append');
+
+fprintf('✅ Plot data saved to %s\n', outname);
 
 
 %% Comparison of edge Modes and bulk

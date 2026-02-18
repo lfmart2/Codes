@@ -1,2 +1,6 @@
 ## MATLAB Codes
-MATLAB codes from previous and current projects. Here I included relevant class codes
+MATLAB codes from previous and current projects. Here I included relevant condensed matter codes and post-processing files.
+- **Wilson_Loop:** Computes Wilson-loop eigenphases for a $4 \times 4$ Bloch Hamiltonian on a 2D Brillouin zone. For each $k_y$ slice it diagonalizes the Hamiltonian across $k_x$, collects the two lowest eigenvectors, builds Wilson-loop overlaps using specific combinatorial index blocks, assembles a $2 \times 2$ Wilson matrix, and extracts eigenphases.
+- **SSH_bulk:** Creates a 1D staggered Tight-Binding chain with alternate coupling parameters $v$ and $w$ refering to the intra- and inter-chain electronic coupling, respectively. The parameter $N$ tunes the one-dimensional chain lattices.
+- **ElectronOccupancy.m:** Funcion that calculates the electron donation to a chemisorbed molecule from a polyacetylene chain. The code tunes the topological phase transition of the 1D staggered chain.
+- **El_friction**: Code that calculates the electronic friction tensore of a molecular adsorbate due to a vibronic coupling. This electronic friction can be understood as a correction of the Born-Oppenheimer approximation, where the atomic degrees of freedoms are expected to be "freeze"
