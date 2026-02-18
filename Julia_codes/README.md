@@ -1,16 +1,70 @@
-# Mathematica Codes (PhD Portfolio)
+# Julia Codes — PhD Research Portfolio
 
-This folder is a **curated set of Julia** from my PhD and graduate research training.
-It shows how I use Julia to move from theory to reproducible computational results in condensed matter physics. Here, I have added a plethora of post-processing tools that takes Tight-Binding modles, usually extracted from [Wannier90](https://wannier.org/), i.e., electronic structure calculations, and plots the corresponding outputs. Also, I have added the codes to calculate the electronic coupling and electron's wavefunction in a semiconducr Quantum Dot. For more codes and applications, please take a look in the [RibeiroGroup](https://github.com/RibeiroGroup) to explore all my codes and its applications.
+This folder showcases Julia tools I developed during my PhD to study **electronic structure and quantum phenomena in condensed matter systems**.
 
-Julia is a relatively new code language alternative capable of high-level coding for multiple purposes. I adventured to learn this new coding for its versatile and high efficiency. Take a [look](https://discourse.julialang.org/t/why-is-julia-so-great/94718/6) on this new language
+The repository focuses on reproducible post-processing workflows for:
+- **Wannier90 tight-binding models** (`*_hr.dat`, `*_eig`)  
+- **VASP outputs** (`PROCAR`, `EIGENVAL`, HDF5-derived datasets)  
+- **Semiconductor quantum-dot physics** (electronic coupling and Fano line-shape analyses)
+
+If you are reviewing this portfolio for hiring or collaboration, this section is designed to help you quickly understand what each code does and where it fits in a research workflow.
 
 ---
- - **TB_Bandstructure:** Jupyter notebook that calculates the Band structure from the <seedname>_hr.dat (Wannier90) file. This includes the calculation of the collinear and non-collinear Spin. Notebook requieres the julia script Bandstructure.jl.
- - **TB_DOS:** Calculates the Density of States (DOS) from a full-diagonalized grid of the tight-binding model extacted from the files <seendname>_hr.dat from Wannier90. The Jupyter notebook requires the julia script TB_DOS.jl
- - **TB_FS:** Jupyter Notebook that calculates the 2D Fermi Surface of a Tight_Binding model and plots the contour lines arounf the Fermi Energy. Notebook runs with the <seedname>_hr.eig file and the Julia script FS_TB.jl
- - **TB-Greens.jl**: A very interesting script where calculates the surface greens function of a Tight-Binding model through principal layers.
- - **VAS_DOS**: An example of the post-processing calculations of the output files of VASP. This Notebook analyses the file PROCAR and calculates the corresponding DOS and PDOS. Notebook requires the Julia script VASP_DOS.jl
- - **VASP_Fermi_surface:** A Julia script that takes the VASP output file EIGENCAR and calculates the contour plots of the energy at fixed energies (Fermi surfaces).
- - **Electronic_couplings.jl:** Script that contains the codes to calculates the electornic couplings and wavefunctions of a semiconductor Quantum Dot. Here, I have implemented such interaction with a tunable QD size and at different Core/Shells radius.
- - **Fano_IR_1S.jl:** Applications of Julia codes to the exploration of assymetry lineshape lines in a pump-probe scattering scheme on semiconductor Quantum Dots.
+
+## What is in this folder?
+
+### Main scripts
+
+| File | Research purpose | Typical inputs | Core output |
+|---|---|---|---|
+| `Bandstructure.jl` | Tight-binding band structures from Wannier Hamiltonians | `seedname_hr.dat`, k-path definitions | Band energies and publication-style plots |
+| `DOS.jl` | DOS/PDOS workflows for collinear and non-collinear cases | HDF5 energies and VASP-derived data | DOS/PDOS curves |
+| `FS.jl` | 2D/3D Fermi-surface visualization | HDF5 band datasets | Fermi-surface contour maps |
+| `TB-Greens.jl` | Surface Green's function via principal layers | Layer-resolved Hamiltonians in HDF5/CSV | Surface spectral maps |
+| `VASP_DOS.jl` | PROCAR parsing and DOS/PDOS projections | `PROCAR` files | Total/projection-resolved DOS |
+| `VASP_Fermi_surface.jl` | VASP-based Fermi-surface extraction | `EIGENVAL` and converted tabular data | Constant-energy contour plots |
+| `Electronic_couplings.jl` | Quantum-dot coupling and wavefunction trends | Quantum-dot size/distance parameter grids | Coupling-vs-size/distance analyses |
+| `Fano_IR_1S.jl` | Fano resonance analysis in pump-probe context | Experimental/simulated line-shape arrays | Optimized Fano parameters and trend plots |
+
+### Notebooks
+
+- `TB_Bandstructure.ipynb` — interactive band-structure exploration.  
+- `TB_DOS.ipynb` — DOS post-processing from tight-binding data.  
+- `TB_FS.ipynb` — interactive Fermi-surface calculations.  
+- `VASP_DOS.ipynb` — DOS/PDOS exploration from VASP outputs.
+
+---
+
+## Skills demonstrated
+
+- **Scientific programming in Julia** for medium-to-large post-processing pipelines.
+- **Computational condensed matter physics** (band structure, DOS/PDOS, Fermi surfaces).
+- **Electronic-structure interoperability** across Wannier90 and VASP ecosystems.
+- **Model-driven quantum-dot analysis** (size- and distance-dependent couplings).
+- **Data transformation + visualization** using HDF5/CSV and publication-ready plotting.
+
+---
+
+## Quick start
+
+> These scripts were created for research workflows and often include machine-specific paths.  
+> For reuse, update file paths and data locations at the top of each script.
+
+1. Install Julia and core packages used in this folder (e.g., `Plots`, `HDF5`, `CSV`, `DataFrames`, `LinearAlgebra`, `DelimitedFiles`, `Distributions`).
+2. Open the target `.jl` file and adjust path constants (for example `FILE_DATA_*` or absolute `raw"..."` paths).
+3. Run the specific analysis function for your case (see [`FUNCTION_INDEX.md`](./FUNCTION_INDEX.md)).
+
+---
+
+## Suggested reading order (for recruiters)
+
+1. **`Bandstructure.jl` + `TB_Bandstructure.ipynb`**: core tight-binding workflow.  
+2. **`VASP_DOS.jl` / `DOS.jl`**: practical parsing + DOS/PDOS analysis depth.  
+3. **`FS.jl` + `TB-Greens.jl`**: advanced reciprocal-space and Green-function methods.  
+4. **`Electronic_couplings.jl` + `Fano_IR_1S.jl`**: quantum-dot and spectroscopy-focused modeling.
+
+---
+
+## External context
+
+For broader project context and group-level codebases, see the [RibeiroGroup GitHub organization](https://github.com/RibeiroGroup).
